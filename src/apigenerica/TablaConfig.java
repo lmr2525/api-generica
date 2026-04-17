@@ -8,9 +8,10 @@ import java.util.List;
 
 /**
  * @author Grupo1
- * Estructura tabla
+ * Metadatos de las tablas de la base de datos
  */
 public class TablaConfig {
+    Long id;
     String nombreTabla;
     List<CampoConfig> campos;
 }

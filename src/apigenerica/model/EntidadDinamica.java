@@ -12,13 +12,13 @@ import java.util.Map;
  * @param <ID>
  * 
  */
-public class RegistroDinamico<ID> {
+public class EntidadDinamica<ID> {
     // Nombre de la colummna y valor
     private Map<String, Object> valores = new HashMap<>();
-    // Nombre de la PrimaryKey
+    // Nombre de la columna de la PrimaryKey
     private String campoId;
 
-   public RegistroDinamico(String campoId) {
+   public EntidadDinamica(String campoId) {
         this.campoId = campoId;
     }
 
