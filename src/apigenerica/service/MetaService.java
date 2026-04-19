@@ -50,12 +50,13 @@ public class MetaService {
     
     /**
      * Extrae el nombre de la tabla de una sentencia SQL, lee sus metadatos
-     * desde MySQL y los persiste en db4o.
-     * Solo procesa sentencias CREATE TABLE — para ALTER y DROP devuelve null.
+     * desde MySQL y los persiste en db4o. (Script SQL)
+     * Solo procesa sentencias CREATE TABLE.
      *
      * @param baseDatos Base de datos donde se creó la tabla
      * @param sql Sentencia SQL ejecutada
      * @return TablaConfig creado, o null si no era un CREATE TABLE
+     * @throws java.sql.SQLException
      */
     public TablaConfig guardarConfiguracion(String baseDatos, String sql) throws SQLException {
         // Extraer el nombre de la tabla de la sentencia SQL usando Regex

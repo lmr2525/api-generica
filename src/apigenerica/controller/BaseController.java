@@ -13,6 +13,7 @@ import apigenerica.service.SqlService;
 import apigenerica.service.ValidadorService;
 import io.javalin.http.Context;
 import io.javalin.http.HttpCode;
+import java.sql.SQLException;
 
 /**
  * @author Grupo1
@@ -30,12 +31,13 @@ public class BaseController {
     }
 
     /**
-    * Crea una base de datos y las tablas recibidas en el JSON.
-    * Si la base de datos ya existe, solo crea las tablas.
-    *
-    * @param ctx Contexto de la petición HTTP
-    */
-    public void crearTabla(Context ctx) {
+     * Crea una base de datos y las tablas recibidas en el JSON.
+     * Si la base de datos ya existe, solo crea las tablas.
+     *
+     * @param ctx Contexto de la petición HTTP
+     * @throws java.sql.SQLException
+     */
+    public void crearTabla(Context ctx) throws SQLException {
         // Convertir JSON a objeto MetaRequest
         MetaRequest request = ctx.bodyAsClass(MetaRequest.class);
         // Validaciones
@@ -96,7 +98,7 @@ public class BaseController {
     * @param request Datos de la petición
     * @return Número de tablas procesadas correctamente
     */
-    private int procesarScript(MetaRequest request) {
+    private int procesarScript(MetaRequest request) throws SQLException {
         // Separar el script en sentencias SQL por el delimitador ";"
         String[] sentencias = request.getSql().split(";");
         int tablasCreadas = 0;
