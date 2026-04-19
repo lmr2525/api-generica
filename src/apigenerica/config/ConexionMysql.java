@@ -11,9 +11,9 @@ import java.sql.SQLException;
 
 /**
  * @author Grupo1
- * Conexión con la base de datos
+ * Conexión con la base de datos MySQL
  */
-public class Conexion {
+public class ConexionMysql {
     // Las conexiones se crean al inicio y siempre están abiertas
     private static HikariDataSource ds;
     private static final String URL = "jdbc:mysql://localhost:3306/prueba"; // BBDD

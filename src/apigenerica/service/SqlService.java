@@ -4,120 +4,141 @@
  */
 package apigenerica.service;
 
-import apigenerica.CampoConfig;
+import apigenerica.model.ColumnaConfig;
 import apigenerica.TipoDatoMapper;
-import apigenerica.config.Conexion;
+import apigenerica.config.ConexionMysql;
+import apigenerica.excepciones.BaseDatosException;
+import apigenerica.excepciones.ValidacionException;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set; 
 
 /**
  * @author Grupo1 
- * Crea las sentencias create table
+ * Operaciones SQL genéricas (no CRUD)
  */
 public class SqlService {
-    private final MetaService metaService = new MetaService();
-    
+
+    private MetaService metaService;
+    private final ValidadorService validador;
+
+    public SqlService(MetaService metaService, ValidadorService validador) {
+        this.metaService = metaService;
+        this.validador = validador;
+    }
+
     /**
-     * Construye una sentencia de creación de tablas a partir de 
-     * la estructura de campos
+     * Construye una sentencia CREATE TABLE
+     *
      * @param nombreTabla Nombre de la tabla
      * @param campos Definición de los campos de la tabla
-     * @return Sentencia SQL
+     * @return SQL listo para ejecutar
      */
-    public String generarCreateSql(String nombreTabla, List<CampoConfig> campos) throws Exception {
-        validarColumnasUnicas(campos);
-        StringBuilder sql = new StringBuilder("CREATE TABLE " + nombreTabla + " (");
+    public String generarCreateSql(String nombreTabla, List<ColumnaConfig> campos) {
+        try {
+            validador.validarNombre(nombreTabla);
+            validador.validarColumnasUnicas(campos);
+            validador.validarTienePk(campos);
 
-        // Recorrer lista de campos
-        for (int i = 0; i < campos.size(); i++) {
-            CampoConfig c = campos.get(i);
-            // `Nombre de la tabla` + " " + tipo de dato
-            sql.append("`").append(c.getNombre()).append("`").append(" ")
-                    .append(TipoDatoMapper.toSql(c.getTipo()));
-            
-            // Si puede ser null
-            if (!c.isNullable()) sql.append(" NOT NULL");
-            // Si se especificó un valor por defecto y no es autoincremental
-            if (c.getValorDefecto() != null && !c.isAutoincremental()) {
-                sql.append(" DEFAULT '").append(c.getValorDefecto()).append("'");
+            StringBuilder sql = new StringBuilder("CREATE TABLE " + nombreTabla + " (");
+            // Recorrer lista de campos
+            for (int i = 0; i < campos.size(); i++) {
+                ColumnaConfig c = campos.get(i);
+                // `Nombre de la tabla` + " " + tipo de dato
+                sql.append("`").append(c.getNombre()).append("`").append(" ")
+                        .append(TipoDatoMapper.toSql(c.getTipo()));
+
+                // Si no puede ser nulo
+                if (!c.isNullable()) {
+                    sql.append(" NOT NULL");
+                }
+                // Si se especificó un valor por defecto y no es autoincremental
+                if (c.getValorDefecto() != null && !c.isAutoincremental()) {
+                    sql.append(" DEFAULT '").append(c.getValorDefecto()).append("'");
+                }
+                // Si es autoincremental (y tipo INT)
+                if (c.isAutoincremental() && TipoDatoMapper.toSql(c.getTipo()).contains("INT")) {
+                    sql.append(" AUTO_INCREMENT");
+                }
+                // Si es clave primaria
+                if (c.isPk()) {
+                    sql.append(" PRIMARY KEY");
+                }
+                // Si es único
+                if (c.isUnico()) {
+                    sql.append(" UNIQUE");
+                }
+
+                // Separar de la siguiente columna
+                if (i < campos.size() - 1) {
+                    sql.append(", ");
+                }
             }
-            // Si es clave primaria
-            if (c.isPk()) sql.append(" PRIMARY KEY");
-            // Si es autoincremental (y tipo INT)
-            if (c.isAutoincremental() && TipoDatoMapper.toSql(c.getTipo()).contains("INT")) {
-                sql.append(" AUTO_INCREMENT");
+
+            // Añadir Foreign Keys
+            for (ColumnaConfig c : campos) {
+                if (c.getReferenciaTabla() != null) {
+                    sql.append(", FOREIGN KEY (").append(c.getNombre())
+                            .append(") REFERENCES `").append(c.getReferenciaTabla())
+                            .append("`(`").append(c.getReferenciaCol()).append("`)");
+                }
             }
-            // Si es único
-            if (c.isUnico()) sql.append(" UNIQUE");
-            
-            // Separar de la siguiente columna
-            if (i < campos.size() - 1) sql.append(", ");
+            sql.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+            return sql.toString();
+        } catch (Exception e) {
+            throw new ValidacionException(e.getMessage());
         }
-
-        // Añadir Foreign Keys
-        for (CampoConfig c : campos) {
-            if (c.getReferenciaTabla() != null) {
-                sql.append(", FOREIGN KEY (").append(c.getNombre())
-                   .append(") REFERENCES `").append(c.getReferenciaTabla())
-                   .append("`(`").append(c.getReferenciaCampo()).append("`)");
-            }
-        }
-
-        sql.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-        return sql.toString();
     }
-    
-    public String generarDropSql(String nombreTabla) {
-        return "DROP TABLE IF EXISTS `" + nombreTabla + "`;";
-    }
-    
     
     /**
-     * Recibe una consulta SQL y la limpia
-     * @param sqlSinProc
-     * @throws java.lang.Exception
+     * Construye una sentencia CREATE DATABASE
+     * @param nombreDb
+     * @return 
      */
-    private void limpiarSql(String sqlSinProc) throws Exception {
-        String sqlLimpio = sqlSinProc.trim().toUpperCase().replaceAll("\\s+", " ");
-        // Bloquear consultas a sys_tablas y sys_campos
-        if (sqlLimpio.contains("SYS_TABLAS") || sqlLimpio.contains("SYS_CAMPOS")) {
-            throw new Exception("No tienes permiso para modificar las tablas del sistema.");
-        }
-
-        // Permitir solo CREATE, ALTER y DROP
-        if (!sqlLimpio.startsWith("CREATE TABLE") && !sqlLimpio.startsWith("ALTER TABLE") && !sqlLimpio.startsWith("DROP TABLE")) {
-            throw new Exception("Solo se permiten sentencias DDL (CREATE, ALTER, DROP).");
-        }
+    public String generarCreateDbSql(String nombreDb) {
+        return "CREATE DATABASE IF NOT EXISTS `" + nombreDb + "`";
     }
-    
-    public void ejecutarSql(String sql, String nombreLogico) throws Exception {
-        limpiarSql(sql);
-        
-        try (Connection conn = Conexion.getConexion();
-            Statement stmt = conn.createStatement()) {
-            stmt.execute(sql);
 
-            String sqlUpper = sql.trim().toUpperCase();
-            if (sqlUpper.startsWith("CREATE TABLE")|| sqlUpper.startsWith("ALTER TABLE")) {
-                // Guardar configuración asociada a la tabla
-                metaService.guardarConfiguracion(nombreLogico);
-            } 
-            else if (sqlUpper.startsWith("DROP TABLE")) {
-                // Borrar configuración asociada a la tabla
-                metaService.eliminarConfiguracion(nombreLogico);
-            }
-        }
+    /**
+     * Construye una sentencia DROP table
+     *
+     * @param nombreTabla Nombre de la tabla a borrar
+     * @return SQL listo para ejecutar
+     */
+    public String generarDropSql(String nombreTabla) {
+        validador.validarNombre(nombreTabla);
+        return "DROP TABLE IF EXISTS `" + nombreTabla + "`;";
     }
-    
-    private void validarColumnasUnicas(List<CampoConfig> campos) throws Exception {
-        Set<String> nombres = new HashSet<>();
-        for (CampoConfig c : campos) {
-            if (!nombres.add(c.getNombre().toLowerCase())) {
-                throw new Exception("La columna '" + c.getNombre() + "' está duplicada.");
+
+    /**
+     * Recibe una consulta SQL y la limpia, eliminando espacios en blanco
+     *
+     * @param sql SQL sin procesar
+     * @return String SQL limpio
+     */
+    public String limpiarSql(String sql) {
+        return sql.trim().replaceAll("\\s+", " ");
+    }
+
+    /**
+     * Ejecuta un script SQL
+     *
+     * @param baseDatos
+     * @param sql SQL a ejecutar
+     */
+    public void ejecutarSql(String baseDatos, String sql) {
+        // Limpiar antes de ejecutar
+        String sqlLimpio = limpiarSql(sql);
+
+        try (Connection conn = ConexionMysql.getConexion(); Statement stmt = conn.createStatement()) {
+            // Seleccionar la base de datos
+            if (baseDatos != null && !baseDatos.trim().isEmpty()) {
+                conn.setCatalog(baseDatos);
             }
+            stmt.execute(sqlLimpio);
+        } catch (SQLException e) {
+            throw new BaseDatosException("Error al ejecutar SQL.", e);
         }
     }
 }

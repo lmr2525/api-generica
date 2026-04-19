@@ -9,8 +9,10 @@ import java.util.Map;
 
 /**
  * @author Grupo1
- * @param <ID>
  * 
+ * Representa una fila de una tabla
+ * como un mapa de clave-valor
+ * @param <ID> Tipo del dato de la clave primaria
  */
 public class EntidadDinamica<ID> {
     // Nombre de la colummna y valor

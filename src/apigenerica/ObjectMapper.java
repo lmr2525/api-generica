@@ -4,6 +4,7 @@
  */
 package apigenerica;
 
+import apigenerica.model.ColumnaConfig;
 import apigenerica.model.EntidadDinamica;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -14,10 +15,10 @@ import java.util.List;
  * Convertir resultados de una consulta SQL en un Objeto
  */
 public class ObjectMapper {
-    public EntidadDinamica<Object> mapear(ResultSet resultSet, List<CampoConfig> configuracion, String nombrePk) throws SQLException {
+    public EntidadDinamica<Object> mapear(ResultSet resultSet, List<ColumnaConfig> configuracion, String nombrePk) throws SQLException {
         EntidadDinamica<Object> entidad = new EntidadDinamica<>(nombrePk);
 
-        for (CampoConfig confCampo : configuracion) {
+        for (ColumnaConfig confCampo : configuracion) {
             // Aplicar reglas de mapeo
             if (confCampo != null) {
                 // No incluir en el objeto resultante

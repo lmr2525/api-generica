@@ -4,6 +4,7 @@
  */
 package apigenerica;
 
+import apigenerica.model.ColumnaConfig;
 import java.sql.Types;
 import java.time.LocalDate;
 
@@ -61,7 +62,7 @@ public class TipoDatoMapper {
      * @return tipo de dato Java
      * @throws Exception
      */
-    public static Object toJava(Object valorSinProc, CampoConfig conf) throws Exception {
+    public static Object toJava(Object valorSinProc, ColumnaConfig conf) throws Exception {
         // Validación datos obligatorios (Not Nullable)
         if (valorSinProc == null) {
             if (!conf.isNullable()) {

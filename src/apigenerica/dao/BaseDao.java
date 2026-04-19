@@ -8,8 +8,8 @@ import java.sql.*;
 import java.util.*;
 
 /**
- *
- * @author moni_
+ * @author Grupo1
+ * Consultas CRUD con las tablas
  */
 public class BaseDao {
 

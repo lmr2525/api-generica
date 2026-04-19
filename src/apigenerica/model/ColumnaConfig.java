@@ -2,27 +2,27 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package apigenerica;
+package apigenerica.model;
 
 /**
  * @author Grupo1
- * Metadatos de los campos de la base de datos
+ * Metadatos de las columnas de la base de datos
  */
-public class CampoConfig {
+public class ColumnaConfig {
     Long id;
     String nombre;
     String tipo;
     boolean pk;
-    boolean nullable;
-    boolean contrasena;
-    boolean visible; // Para el DTO
+    boolean nullable = true;
+    boolean contrasena = false;
+    boolean visible = true; // Para el DTO
     boolean autoincremental;
     boolean unico;
-    String valorDefecto; // Validar según tipo de dato
+    Object valorDefecto;
     
     // Relaciones (foreign key)
     String referenciaTabla;
-    String referenciaCampo;
+    String referenciaCol;
 
     public Long getId() {
         return id;
@@ -96,7 +96,7 @@ public class CampoConfig {
         this.unico = unico;
     }
 
-    public String getValorDefecto() {
+    public Object getValorDefecto() {
         return valorDefecto;
     }
 
@@ -112,11 +112,11 @@ public class CampoConfig {
         this.referenciaTabla = referenciaTabla;
     }
 
-    public String getReferenciaCampo() {
-        return referenciaCampo;
+    public String getReferenciaCol() {
+        return referenciaCol;
     }
 
-    public void setReferenciaCampo(String referenciaCampo) {
-        this.referenciaCampo = referenciaCampo;
+    public void setReferenciaCol(String referenciaCol) {
+        this.referenciaCol = referenciaCol;
     }
 }
