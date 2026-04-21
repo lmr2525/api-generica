@@ -12,32 +12,33 @@ import java.util.List;
 
 /**
  * @author Grupo1 
- * Convertir resultados de una consulta SQL en un Objeto
+ * Convertir resultados de una consulta SQL en un objeto EntidadDinamica
  */
-public class ObjectMapper {
+public class EntidadMapper {
 
-    public EntidadDinamica<Object> mapear(ResultSet resultSet, List<ColumnaConfig> configuracion, String nombrePk) throws SQLException {
+    public EntidadDinamica<Object> mapear(ResultSet resultSet, List<ColumnaConfig> columnas, String nombrePk) throws SQLException {
         EntidadDinamica<Object> entidad = new EntidadDinamica<>(nombrePk);
 
-        for (ColumnaConfig confCampo : configuracion) {
+        // Extraer nombres de las columnas de la tabla de ColumnaConfig
+        for (ColumnaConfig col : columnas) {
             // Aplicar reglas de mapeo
-            if (confCampo != null) {
+            if (col != null) {
                 // No incluir en el objeto resultante
-                if (confCampo.isContrasena()) {
+                if (col.isContrasena()) {
                     continue;
                 }
-                if (!confCampo.isVisible()) {
+                if (!col.isVisible()) {
                     continue;
                 }
 
                 try {
                     // Recuperar valores de la base de datos. Los valores son 
                     // convertidos por JDBC a tipos Java según el tipo de la columna
-                    Object valor = resultSet.getObject(confCampo.getNombre());
-                    entidad.set(confCampo.getNombre(), valor);
+                    Object valor = resultSet.getObject(col.getNombre());
+                    entidad.set(col.getNombre(), valor);
                 } catch (SQLException e) {
                     // Si el campo no existe en la db
-                    e.printStackTrace();
+                    throw e;
                 }
             }
         }

@@ -4,9 +4,10 @@
  */
 package apigenerica.service;
 
-import apigenerica.ObjectMapper;
 import apigenerica.model.OperacionPendiente;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -16,11 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
-import jdk.internal.org.objectweb.asm.TypeReference;
 
 /**
- *
  * @author Grupo1
+ * Gestiona la cola de operaciones de Paradox.
+ * Las operaciones se ponen en cola y se eliminan cuando sean insertadas en MySQL
  */
 public class ColaOperaciones {
 
@@ -69,7 +70,7 @@ public class ColaOperaciones {
             List<OperacionPendiente> lista = new ArrayList<>();
             String sql = "SELECT * FROM operaciones_pendientes ORDER BY id ASC";
             try (PreparedStatement stmt = conexion.prepareStatement(sql);
-                 ResultSet rs = stmt.executeQuery()) {
+                    ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     lista.add(mapearOperacion(rs));
                 }

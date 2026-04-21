@@ -31,6 +31,7 @@ public class ApiGenerica {
         
         // Configurar endpoints
         app.post("/api/metadata", BaseController::crearTabla);
+        app.get("/api/metadata", BaseController::);
         app.get("/api/{tabla}", BaseController::fetchTodo);
         app.get("/api/{tabla}/{id}", BaseController::fetchPorId);
         app.post("/api/{tabla}", BaseController::create);
