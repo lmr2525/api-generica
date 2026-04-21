@@ -11,10 +11,11 @@ import java.sql.SQLException;
 import java.util.List;
 
 /**
- * @author Grupo1
+ * @author Grupo1 
  * Convertir resultados de una consulta SQL en un Objeto
  */
 public class ObjectMapper {
+
     public EntidadDinamica<Object> mapear(ResultSet resultSet, List<ColumnaConfig> configuracion, String nombrePk) throws SQLException {
         EntidadDinamica<Object> entidad = new EntidadDinamica<>(nombrePk);
 
@@ -22,9 +23,13 @@ public class ObjectMapper {
             // Aplicar reglas de mapeo
             if (confCampo != null) {
                 // No incluir en el objeto resultante
-                if (confCampo.isContrasena()) continue;
-                if (!confCampo.isVisible()) continue;
-                
+                if (confCampo.isContrasena()) {
+                    continue;
+                }
+                if (!confCampo.isVisible()) {
+                    continue;
+                }
+
                 try {
                     // Recuperar valores de la base de datos. Los valores son 
                     // convertidos por JDBC a tipos Java según el tipo de la columna
@@ -34,7 +39,7 @@ public class ObjectMapper {
                     // Si el campo no existe en la db
                     e.printStackTrace();
                 }
-            }   
+            }
         }
         return entidad;
     }

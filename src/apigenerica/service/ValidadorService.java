@@ -6,7 +6,7 @@ package apigenerica.service;
 
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ColumnaConfig;
-import apigenerica.model.MetaRequest;
+import apigenerica.model.ApiRequest;
 import apigenerica.model.TablaConfig;
 import java.util.HashSet;
 import java.util.List;
@@ -91,14 +91,14 @@ public class ValidadorService {
     * en el JSON
     * @param request 
     */
-    public void validarMetadata(MetaRequest request) {
+    public void validarMetadata(ApiRequest request) {
         if (request.getOperacion() == null) {
             throw new ValidacionException("La operación es obligatoria.");
         }
         if (request.getBaseDatos() == null || request.getBaseDatos().trim().isEmpty()) {
             throw new ValidacionException("La base de datos es obligatoria.");
         }
-        if (request.getOperacion() == MetaRequest.Operacion.CREATE_TABLE) {
+        if (request.getOperacion() == ApiRequest.Operacion.CREATE_TABLE) {
             if (request.getTabla() == null || request.getTabla().isEmpty()) {
                 throw new ValidacionException("Debe proporcionar al menos una tabla.");
             }
@@ -111,7 +111,7 @@ public class ValidadorService {
                 validarTienePk(t.getColumnas());
                 validarPkUnica(t.getColumnas());
             }
-        } else if (request.getOperacion() == MetaRequest.Operacion.EXECUTE_SQL) {
+        } else if (request.getOperacion() == ApiRequest.Operacion.EXECUTE_SQL) {
             if (request.getSql() == null || request.getSql().trim().isEmpty()) {
                 throw new ValidacionException("El SQL no puede estar vacío.");
             }

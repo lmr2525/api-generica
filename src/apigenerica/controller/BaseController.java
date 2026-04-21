@@ -5,8 +5,8 @@
 package apigenerica.controller;
 
 import apigenerica.model.ApiRespuesta;
-import apigenerica.model.MetaRequest;
-import apigenerica.model.MetaRequest.Operacion;
+import apigenerica.model.ApiRequest;
+import apigenerica.model.ApiRequest.Operacion;
 import apigenerica.model.TablaConfig;
 import apigenerica.service.MetaService;
 import apigenerica.service.SqlService;
@@ -38,8 +38,8 @@ public class BaseController {
      * @throws java.sql.SQLException
      */
     public void crearTabla(Context ctx) throws SQLException {
-        // Convertir JSON a objeto MetaRequest
-        MetaRequest request = ctx.bodyAsClass(MetaRequest.class);
+        // Convertir JSON a objeto ApiRequest
+        ApiRequest request = ctx.bodyAsClass(ApiRequest.class);
         // Validaciones
         validador.validarMetadata(request);
 
@@ -60,7 +60,7 @@ public class BaseController {
     *
     * @param request Datos de la petición
     */
-    private void crearBaseDatos(MetaRequest request) {
+    private void crearBaseDatos(ApiRequest request) {
         // Validaciones
         validador.validarNombre(request.getBaseDatos());
         // Crear base de datos
@@ -75,7 +75,7 @@ public class BaseController {
     * @param request Datos de la petición
     * @return Número de tablas creadas
     */
-    private int procesarFormulario(MetaRequest request) {
+    private int procesarFormulario(ApiRequest request) {
         int tablasCreadas = 0;
         for (TablaConfig t : request.getTabla()) {
             // Validaciones
@@ -98,7 +98,7 @@ public class BaseController {
     * @param request Datos de la petición
     * @return Número de tablas procesadas correctamente
     */
-    private int procesarScript(MetaRequest request) throws SQLException {
+    private int procesarScript(ApiRequest request) throws SQLException {
         // Separar el script en sentencias SQL por el delimitador ";"
         String[] sentencias = request.getSql().split(";");
         int tablasCreadas = 0;

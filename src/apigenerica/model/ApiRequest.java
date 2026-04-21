@@ -11,7 +11,7 @@ import java.util.List;
  * Entidad que representa el JSON recibido para la creación de
  * las tablas
  */
-public class MetaRequest {
+public class ApiRequest {
 
     // Enumeración con los valores posibles de operación
     public enum Operacion {
