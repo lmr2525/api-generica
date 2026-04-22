@@ -45,8 +45,11 @@ public class ParadoxCache {
         }
     }
 
-    public void imsertar(TablaConfig tabla) throws SQLException {
+    public void insertar(TablaConfig tabla) throws SQLException {
         lock.lock();
+        // Hashear configuración y guardar como Etag
+        String json = jackson.writeValueAsString(tabla);
+        tabla.setEtag(Integer.toHexString(json.hashCode()));
         try {
             String sql = "INSERT INTO meta_cache (nombre_logico, datos) VALUES (?, ?)";
             try (PreparedStatement stmt = conexion.prepareStatement(sql)) {

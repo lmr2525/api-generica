@@ -4,6 +4,8 @@
  */
 package apigenerica.dao;
 
+import apigenerica.model.ColumnaConfig;
+import apigenerica.model.EntidadDinamica;
 import java.sql.*;
 import java.util.*;
 
@@ -12,41 +14,88 @@ import java.util.*;
  * Consultas CRUD con las tablas
  */
 public class BaseDao {
+    /**
+     * Obtener todos los registros de una tabla
+     * @param conn
+     * @param nombreTabla
+     * @param campos
+     * @param nombrePk
+     * @return
+     * @throws SQLException 
+     */
+    public List<EntidadDinamica<Object>> seleccionarTodo(Connection conn, String nombreTabla,
+            List<ColumnaConfig> campos, String nombrePk) throws SQLException {
+        String sql = "SELECT * FROM `" + nombreTabla + "`";
+        List<EntidadDinamica<Object>> resultado = new ArrayList<>();
 
+        try (PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                resultado.add(objectMapper.mapear(rs, campos, nombrePk));
+            }
+        }
+        return resultado;
+    }
+    /**
+     * Obtener un registro de una tabla a partir de su ID
+     * @param conn Conexión a MySQL
+     * @param nombreTabla Nombre de la tabla en la que se buscará
+     * @param campos
+     * @param nombrePk
+     * @param id
+     * @return
+     * @throws SQLException 
+     */
+    public EntidadDinamica<Object> obtenerPorId(Connection conn, String nombreTabla, 
+        List<ColumnaConfig> campos, String nombrePk, Object id) throws SQLException {
+    
+        String sql = "SELECT * FROM `" + nombreTabla + "` WHERE `" + nombrePk + "` = ?";
+
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setObject(1, id);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return objectMapper.mapear(rs, campos, nombrePk);
+                }
+            }
+        }
+        return null; // Retorna null si no encuentra el registro
+    }
+    
     /** 
      * Construir y ejecutar una consulta INSERT en una base de datos SQL
      * @param conn
      * @param nombreTabla
-     * @param datos
-     * @return
+     * @param entidad
      * @throws SQLException 
      */
-    public long insertar(Connection conn, String nombreTabla, Map<String, Object> datos) throws SQLException {
+    public void insertar(Connection conn, String nombreTabla, EntidadDinamica<?> entidad) throws SQLException {
+        Map<String, Object> datos = entidad.getTodo();
+        
         if (datos == null || datos.isEmpty()) {
             throw new IllegalArgumentException("No hay datos para insertar");
         }
 
+        List<String> columnas = new ArrayList<>(datos.keySet());
+        
         // Construir sentencia de INSERT
         StringBuilder sql = new StringBuilder("INSERT INTO `").append(nombreTabla).append("` (");
         StringBuilder placeholders = new StringBuilder("VALUES ("); // String con placeholders (?) de los valores
         
         List<Object> valores = new ArrayList<>();
-        int i = 0;
 
-        for (Map.Entry<String, Object> entry : datos.entrySet()) {
-            sql.append("`").append(entry.getKey()).append("`"); // `Nombre de la columna`
+        for (int i = 0; i < columnas.size(); i++) {
+            sql.append("`").append(columnas.get(i)).append("`"); // `Nombre de la columna`
             placeholders.append("?");
-            valores.add(entry.getValue()); // Valores a insertar
 
             // Separar columnas y ? por comas
-            if (i < datos.size() - 1) {
+            if (i < columnas.size() - 1) {
                 sql.append(", ");
                 placeholders.append(", ");
             }
-            i++;
         }
-
-        // Unir placeholders al final de la sentencia
+        // Agregar placeholders al final de la sentencia
         sql.append(") ").append(placeholders).append(")");
 
         // RETURN_GENERATED_KEYS por si la inserción genera ID autoincremental
