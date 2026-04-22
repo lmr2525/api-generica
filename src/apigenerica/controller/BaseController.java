@@ -49,8 +49,6 @@ public class BaseController {
         int tablasCreadas = 0;
         if (request.getOperacion() == Operacion.CREATE_TABLE) {
             tablasCreadas = procesarFormulario(request);
-        } else if (request.getOperacion() == Operacion.EXECUTE_SQL) {
-            tablasCreadas = procesarScript(request);
         }
         ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok("Se han creado " + tablasCreadas + " tablas."));
     }
@@ -87,32 +85,6 @@ public class BaseController {
             t.setNombreDb(request.getBaseDatos());
             metaService.guardarConfiguracion(t);
             tablasCreadas++;
-        }
-        return tablasCreadas;
-    }
-
-    /**
-    * Procesa un script SQL con una o varias sentencias DDL separadas por ";",
-    * ejecuta cada una y persiste los metadatos de las tablas creadas en db4o.
-    *
-    * @param request Datos de la petición
-    * @return Número de tablas procesadas correctamente
-    */
-    private int procesarScript(ApiRequest request) throws SQLException {
-        // Separar el script en sentencias SQL por el delimitador ";"
-        String[] sentencias = request.getSql().split(";");
-        int tablasCreadas = 0;
-        for (String sql : sentencias) {
-            if (sql.trim().isEmpty()) { // Ignorar cadenas vacías
-                continue;
-            }
-            // Crear tabla
-            sqlService.ejecutarSql(request.getBaseDatos(), sql);
-            // Persistir metadatos
-            TablaConfig t = metaService.guardarConfiguracion(request.getBaseDatos(), sql);
-            if (t != null) {
-                tablasCreadas++;
-            }
         }
         return tablasCreadas;
     }

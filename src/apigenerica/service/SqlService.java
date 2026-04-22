@@ -6,12 +6,7 @@ package apigenerica.service;
 
 import apigenerica.model.ColumnaConfig;
 import apigenerica.TipoDatoMapper;
-import apigenerica.config.ConexionMysql;
-import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.ValidacionException;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 
 /**
@@ -39,7 +34,6 @@ public class SqlService {
         try {
             validador.validarNombre(nombreTabla);
             validador.validarColumnasUnicas(campos);
-            validador.validarTienePk(campos);
 
             StringBuilder sql = new StringBuilder("CREATE TABLE " + nombreTabla + " (");
             // Recorrer lista de campos
@@ -109,36 +103,5 @@ public class SqlService {
     public String generarDropSql(String nombreTabla) {
         validador.validarNombre(nombreTabla);
         return "DROP TABLE IF EXISTS `" + nombreTabla + "`;";
-    }
-
-    /**
-     * Recibe una consulta SQL y la limpia, eliminando espacios en blanco
-     *
-     * @param sql SQL sin procesar
-     * @return String SQL limpio
-     */
-    public String limpiarSql(String sql) {
-        return sql.trim().replaceAll("\\s+", " ");
-    }
-
-    /**
-     * Ejecuta un script SQL
-     *
-     * @param baseDatos
-     * @param sql SQL a ejecutar
-     */
-    public void ejecutarSql(String baseDatos, String sql) {
-        // Limpiar antes de ejecutar
-        String sqlLimpio = limpiarSql(sql);
-
-        try (Connection conn = ConexionMysql.getConexion(); Statement stmt = conn.createStatement()) {
-            // Seleccionar la base de datos
-            if (baseDatos != null && !baseDatos.trim().isEmpty()) {
-                conn.setCatalog(baseDatos);
-            }
-            stmt.execute(sqlLimpio);
-        } catch (SQLException e) {
-            throw new BaseDatosException("Error al ejecutar SQL.", e);
-        }
     }
 }
