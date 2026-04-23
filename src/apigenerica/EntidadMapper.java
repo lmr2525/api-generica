@@ -6,9 +6,12 @@ package apigenerica;
 
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.EntidadDinamica;
+import apigenerica.model.RelacionConfig;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author Grupo1 
@@ -16,32 +19,45 @@ import java.util.List;
  */
 public class EntidadMapper {
 
-    public EntidadDinamica<Object> mapear(ResultSet resultSet, List<ColumnaConfig> columnas, String nombrePk) throws SQLException {
-        EntidadDinamica<Object> entidad = new EntidadDinamica<>(nombrePk);
+    public EntidadDinamica mapear(ResultSet resultSet, List<ColumnaConfig> columnas) throws SQLException {
+        EntidadDinamica entidad = new EntidadDinamica();
 
+        // Mapear el ID (Columna "id")
+        entidad.setId(resultSet.getLong("id"));
+    
         // Extraer nombres de las columnas de la tabla de ColumnaConfig
         for (ColumnaConfig col : columnas) {
-            // Aplicar reglas de mapeo
-            if (col != null) {
-                // No incluir en el objeto resultante
-                if (col.isContrasena()) {
-                    continue;
-                }
-                if (!col.isVisible()) {
-                    continue;
-                }
-
-                try {
-                    // Recuperar valores de la base de datos. Los valores son 
-                    // convertidos por JDBC a tipos Java según el tipo de la columna
-                    Object valor = resultSet.getObject(col.getNombre());
-                    entidad.set(col.getNombre(), valor);
-                } catch (SQLException e) {
-                    // Si el campo no existe en la db
-                    throw e;
-                }
+            // No incluir en el objeto resultante
+            if (!col.getNombre().equalsIgnoreCase("id") && col.isVisible()) {
+                // Mapear resto de columnas
+                entidad.set(col.getNombre(), resultSet.getObject(col.getNombre()));
             }
         }
         return entidad;
+    }
+    
+    public EntidadDinamica mapearIncludes(ResultSet resultSet, List<ColumnaConfig> colsPadre,
+        List<RelacionConfig> relaciones, Map<String, List<ColumnaConfig>> colsHijas) throws SQLException {
+        // Mapear entidad padre
+        EntidadDinamica padre = mapear(resultSet, colsPadre);
+
+        for (RelacionConfig rel : relaciones) {
+            // Obtener alias
+            String prefijo = rel.getNombreRelacion() + "_"; 
+
+            Map<String, Object> hijo = new HashMap<>();
+            // Obtenemos columnas de la tabla hija
+            List<ColumnaConfig> columnasHijo = colsHijas.get(rel.getTablaDestino());
+            // Mapear hijo
+            for (ColumnaConfig col : columnasHijo) {
+                // El nombre de la columna en ResultSet (prefijo_nombreCol)
+                String nombreColumna = prefijo + col.getNombre();
+                Object valor = resultSet.getObject(nombreColumna);
+                hijo.put(col.getNombre(), valor);
+            }
+            // Guardar hijo dentro del padre
+            padre.set(rel.getNombreRelacion(), hijo); 
+        }
+        return padre;
     }
 }

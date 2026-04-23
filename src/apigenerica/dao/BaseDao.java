@@ -4,90 +4,104 @@
  */
 package apigenerica.dao;
 
+import apigenerica.EntidadMapper;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.EntidadDinamica;
+import apigenerica.model.RelacionConfig;
 import java.sql.*;
 import java.util.*;
 
 /**
- * @author Grupo1
- * Consultas CRUD con las tablas
+ * @author Grupo1 Consultas CRUD con las tablas
  */
 public class BaseDao {
+
+    private final EntidadMapper entidadMapper;
+
+    public BaseDao(EntidadMapper entidadMapper) {
+        this.entidadMapper = entidadMapper;
+    }
+
     /**
      * Obtener todos los registros de una tabla
+     *
      * @param conn
      * @param nombreTabla
      * @param campos
      * @param nombrePk
      * @return
-     * @throws SQLException 
+     * @throws SQLException
      */
     public List<EntidadDinamica<Object>> seleccionarTodo(Connection conn, String nombreTabla,
             List<ColumnaConfig> campos, String nombrePk) throws SQLException {
         String sql = "SELECT * FROM `" + nombreTabla + "`";
         List<EntidadDinamica<Object>> resultado = new ArrayList<>();
 
-        try (PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery()) {
             while (rs.next()) {
-                resultado.add(objectMapper.mapear(rs, campos, nombrePk));
+                resultado.add(entidadMapper.mapear(rs, campos, nombrePk));
             }
         }
         return resultado;
     }
+
     /**
-     * Obtener un registro de una tabla a partir de su ID
+     * Obtener un registro de una tabla a partir de una columna
+     *
      * @param conn Conexión a MySQL
      * @param nombreTabla Nombre de la tabla en la que se buscará
      * @param campos
-     * @param nombrePk
+     * @param nombreCol
      * @param id
      * @return
-     * @throws SQLException 
+     * @throws SQLException
      */
-    public EntidadDinamica<Object> obtenerPorId(Connection conn, String nombreTabla, 
-        List<ColumnaConfig> campos, String nombrePk, Object id) throws SQLException {
-    
-        String sql = "SELECT * FROM `" + nombreTabla + "` WHERE `" + nombrePk + "` = ?";
+    public EntidadDinamica<Object> obtenerPorCol(Connection conn, String nombreTabla,
+            List<ColumnaConfig> campos, String nombreCol, Object id) throws SQLException {
+
+        String sql = "SELECT * FROM `" + nombreTabla + "` WHERE `" + nombreCol + "` = ?";
 
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setObject(1, id);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return objectMapper.mapear(rs, campos, nombrePk);
+                    return entidadMapper.mapear(rs, campos);
                 }
             }
         }
         return null; // Retorna null si no encuentra el registro
     }
-    
-    /** 
+
+    /**
      * Construir y ejecutar una consulta INSERT en una base de datos SQL
+     *
      * @param conn
      * @param nombreTabla
      * @param entidad
-     * @throws SQLException 
+     * @return
+     * @throws SQLException
      */
-    public void insertar(Connection conn, String nombreTabla, EntidadDinamica<?> entidad) throws SQLException {
+    public long insertar(Connection conn, String nombreTabla, EntidadDinamica<?> entidad) throws SQLException {
         Map<String, Object> datos = entidad.getTodo();
-        
+
         if (datos == null || datos.isEmpty()) {
             throw new IllegalArgumentException("No hay datos para insertar");
         }
 
         List<String> columnas = new ArrayList<>(datos.keySet());
-        
+
         // Construir sentencia de INSERT
         StringBuilder sql = new StringBuilder("INSERT INTO `").append(nombreTabla).append("` (");
         StringBuilder placeholders = new StringBuilder("VALUES ("); // String con placeholders (?) de los valores
-        
+
         List<Object> valores = new ArrayList<>();
 
         for (int i = 0; i < columnas.size(); i++) {
+            String col = columnas.get(i);
             sql.append("`").append(columnas.get(i)).append("`"); // `Nombre de la columna`
             placeholders.append("?");
+            valores.add(datos.get(col));
 
             // Separar columnas y ? por comas
             if (i < columnas.size() - 1) {
@@ -118,13 +132,14 @@ public class BaseDao {
 
     /**
      * Construir y ejecutar una sentencia UPDATE en una base de datos SQL
+     *
      * @param conn
      * @param nombreTabla
      * @param datos
      * @param columnaPk
      * @param valorPk
      * @return
-     * @throws SQLException 
+     * @throws SQLException
      */
     public int actualizar(Connection conn, String nombreTabla, Map<String, Object> datos, String columnaPk, Object valorPk) throws SQLException {
         // Construir sentencia UPDATE
@@ -154,7 +169,6 @@ public class BaseDao {
         }
     }
 
-
     public int eliminar(Connection conn, String nombreTabla, String columnaPk, Object valorPk) throws SQLException {
         String sql = "DELETE FROM `" + nombreTabla + "` WHERE `" + columnaPk + "` = ?";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -162,70 +176,87 @@ public class BaseDao {
             return stmt.executeUpdate();
         }
     }
-    
-    public Map<String, Long> insertarVarias(Connection conn, List<String> ordenTablas, 
-        Map<String, Map<String, Object>> datosPorTabla,
-        Map<String, String> fkEntreTablas) throws SQLException {
-        // fkEntreTablas: {"empleados": "Id_persona"} 
-        // indica que empleados.Id_persona = ID generado por personas
 
+    public Map<String, Long> insertarTransaccional(Connection conn, List<String> ordenTablas,
+            Map<String, Map<String, Object>> datosPorTabla,
+            Map<String, String> fkEntreTablas) throws SQLException {
         Map<String, Long> idsGenerados = new LinkedHashMap<>();
-
         for (String tabla : ordenTablas) {
             Map<String, Object> datos = datosPorTabla.get(tabla);
             if (datos == null) continue;
-
-            // Si esta tabla tiene FK que depende del ID de otra tabla ya insertada
             if (fkEntreTablas.containsKey(tabla)) {
                 String columnaFk = fkEntreTablas.get(tabla);
-                // Buscar el ID generado por la tabla referenciada
-                String tablaRef = buscarTablaRef(ordenTablas, idsGenerados, tabla);
-                if (tablaRef != null) {
-                    datos.put(columnaFk, idsGenerados.get(tablaRef));
-                }
+                String tablaAnterior = ordenTablas.get(ordenTablas.indexOf(tabla) - 1);
+                datos.put(columnaFk, idsGenerados.get(tablaAnterior));
             }
-
-            long idGenerado = insertar(conn, tabla, datos);
-            idsGenerados.put(tabla, idGenerado);
+            EntidadDinamica<Object> entidad = new EntidadDinamica<>("id");
+            datos.forEach(entidad::set);
+            idsGenerados.put(tabla, insertar(conn, tabla, entidad));
         }
         return idsGenerados;
     }
 
-    private String buscarTablaRef(List<String> orden, Map<String, Long> generados, String tablaActual) {
-        int posActual = orden.indexOf(tablaActual);
-        // Devuelve la última tabla anterior que generó un ID
-        for (int i = posActual - 1; i >= 0; i--) {
-            if (generados.containsKey(orden.get(i))) {
-                return orden.get(i);
+    public List<EntidadDinamica<Object>> seleccionarConIncludes(
+            Connection conn,
+            String tablaPrincipal,
+            List<ColumnaConfig> columnasPrincipal,
+            List<RelacionConfig> relaciones) throws SQLException {
+
+        StringBuilder sql = new StringBuilder("SELECT t1.*");
+        StringBuilder joins = new StringBuilder(" FROM `").append(tablaPrincipal).append("` t1");
+
+        // Construir SELECT y JOINs para cada relación N:1
+        int aliasCount = 2;
+        for (RelacionConfig rel : relaciones) {
+            if (rel.getCardinalidad().equals("N:1")) {
+                String alias = "t" + aliasCount;
+
+                // Añadimos campos de la tabla destino con prefijo para evitar colisiones
+                for (String col : rel.getColumnasDestino()) {
+                    sql.append(", ").append(alias).append(".`").append(col)
+                       .append("` AS `").append(rel.getTablaDestino()).append("_").append(col).append("`");
+                }
+
+                joins.append(" LEFT JOIN `").append(rel.getTablaDestino()).append("` ").append(alias)
+                        .append(" ON t1.`").append(rel.getFkColumna()).append("` = ")
+                        .append(alias).append(".`id` "); // Siempre contra .id por tu regla de PK forzada
+
+                aliasCount++;
             }
         }
-        return null;
+
+        sql.append(joins);
+
+        List<EntidadDinamica<Object>> resultados = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql.toString()); ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                // Aquí el ObjectMapper debe ser capaz de agrupar los campos con alias
+                resultados.add(objectMapper.mapearConRelaciones(rs, columnasPrincipal, relaciones));
+            }
+        }
+        return resultados;
     }
 
-    public int actualizarVarias(Connection conn, List<String> ordenTablas,
+    public int actualizarTransaccional(Connection conn, List<String> ordenTablas,
             Map<String, Map<String, Object>> datosPorTabla,
-            Map<String, String> columnasPk,
-            Object valorPk) throws SQLException {
+            Map<String, String> columnasPk, Object valorPk) throws SQLException {
         int filasAfectadas = 0;
         for (String tabla : ordenTablas) {
             Map<String, Object> datos = datosPorTabla.get(tabla);
             if (datos == null) continue;
-            String pk = columnasPk.get(tabla);
-            filasAfectadas += actualizar(conn, tabla, datos, pk, valorPk);
+            filasAfectadas += actualizar(conn, tabla, datos, columnasPk.get(tabla), valorPk);
         }
         return filasAfectadas;
     }
 
-    public int eliminarVarias(Connection conn, List<String> ordenTablas,
-            Map<String, String> columnasPk,
-            Object valorPk) throws SQLException {
-        int filasAfectadas = 0;
-        // Eliminar en orden inverso para respetar FK
-        for (int i = ordenTablas.size() - 1; i >= 0; i--) {
-            String tabla = ordenTablas.get(i);
-            String pk = columnasPk.get(tabla);
-            filasAfectadas += eliminar(conn, tabla, pk, valorPk);
+
+    public int eliminarTransaccional(Connection conn, List<String> ordenTablas,
+                Map<String, String> columnasPk, Object valorPk) throws SQLException {
+            int filasAfectadas = 0;
+            for (int i = ordenTablas.size() - 1; i >= 0; i--) {
+                String tabla = ordenTablas.get(i);
+                filasAfectadas += eliminar(conn, tabla, columnasPk.get(tabla), valorPk);
+            }
+            return filasAfectadas;
         }
-        return filasAfectadas;
-    }
 }

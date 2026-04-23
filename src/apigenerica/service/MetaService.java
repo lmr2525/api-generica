@@ -9,13 +9,17 @@ import apigenerica.TipoDatoMapper;
 import apigenerica.config.ConexionMysql;
 import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
+import apigenerica.model.EntidadDinamica;
+import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -178,4 +182,37 @@ public class MetaService {
         String nombreAmigable = nombreLogico.replace("_", " ");
         return nombreAmigable.substring(0, 1).toUpperCase() + nombreAmigable.substring(1);
     }
+    
+    public EntidadDinamica<Object> mapearConRelaciones(ResultSet rs, 
+        List<ColumnaConfig> columnasPrincipal, 
+        List<RelacionConfig> relaciones) throws SQLException {
+    
+    // 1. Mapeamos la entidad principal (como ya hacías)
+    EntidadDinamica<Object> entidad = mapear(rs, columnasPrincipal, "id");
+
+    // 2. Para cada relación incluida, creamos un objeto anidado
+    for (RelacionConfig rel : relaciones) {
+        if (rel.getCardinalidad().equals("N:1")) {
+            Map<String, Object> objetoRelacionado = new HashMap<>();
+            
+            // Obtenemos los metadatos de la tabla destino desde db4o 
+            // (necesitas un método para traer las columnas de la tabla destino)
+            List<ColumnaConfig> columnasDestino = buscarColumnas(rel.getTablaDestino());
+
+            for (ColumnaConfig col : columnasDestino) {
+                // MySQL devuelve las columnas del JOIN. 
+                // Si hay colisión de nombres (ej. 'id'), 
+                // JDBC suele dar prioridad o usar el orden.
+                // Lo ideal es que en el SQL hayas usado alias: t2.nombre AS rel_nombre
+                Object valor = rs.getObject(rel.getNombreRelacion() + "_" + col.getNombre());
+                objetoRelacionado.put(col.getNombre(), valor);
+            }
+            
+            // Guardamos el objeto anidado en la entidad principal
+            entidad.set(rel.getNombreRelacion(), objetoRelacionado);
+        }
+    }
+    return entidad;
 }
+}
+

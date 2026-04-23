@@ -7,6 +7,8 @@ package apigenerica.service;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.TipoDatoMapper;
 import apigenerica.excepciones.ValidacionException;
+import apigenerica.model.RelacionConfig;
+import java.util.ArrayList;
 import java.util.List;
 
 /**

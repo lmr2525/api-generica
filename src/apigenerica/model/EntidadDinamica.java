@@ -9,42 +9,38 @@ import java.util.Map;
 
 /**
  * @author Grupo1
- * 
- * Representa una fila de una tabla
- * como un mapa de clave-valor
- * @param <ID> Tipo del dato de la clave primaria
+ *
+ * Representa una fila de una tabla como un mapa de clave-valor
  */
-public class EntidadDinamica<ID> {
+public class EntidadDinamica {
+
     // Nombre de la colummna y valor
     private Map<String, Object> valores = new HashMap<>();
     // Nombre de la columna de la PrimaryKey
-    private String campoId;
+    private static final String CAMPO_ID = "id";
 
-   public EntidadDinamica(String campoId) {
-        this.campoId = campoId;
+    // Devuelve el ID de la colección (columna con nombre "id")
+    public Long getId() {
+        Object id = valores.get(CAMPO_ID);
+        return (id != null) ? ((Number) id).longValue() : null;
     }
 
-    // Devuelve el ID de la colección
-    @SuppressWarnings("unchecked")
-    public ID getId() {
-        return (ID) valores.get(campoId);
-    }
-    
     // Guarda el ID dentro de la colección
-    public void setId(ID id) {
-        valores.put(campoId, id);
+    public void setId(Long id) {
+        valores.put(CAMPO_ID, id);
     }
 
-    // Guarda un dato (NO ID) en la colección
+    // Guarda un dato en la colección
     public void set(String columna, Object valor) {
         valores.put(columna, valor);
     }
 
-    // Devuelve un dato (NO ID) de la colección
+    // Devuelve un dato de la colección
     public Object get(String columna) {
         return valores.get(columna);
     }
 
+    // Devuelve toda la colección
     public Map<String, Object> getTodo() {
         return valores;
     }

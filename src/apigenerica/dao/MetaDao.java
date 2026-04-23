@@ -8,6 +8,7 @@ import apigenerica.config.ConexionDb4o;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
+import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
 import com.sun.org.apache.xml.internal.security.signature.ObjectContainer;
 import java.util.ArrayList;
@@ -119,5 +120,40 @@ public class MetaDao {
             tablas.add(resultado.next());
         }
         return tablas;
+    }
+    
+    
+    public RelacionConfig buscarRelacion(String tablaOrigen, String nombreRelacion) {
+        Query query = db.query();
+        query.constrain(RelacionConfig.class);
+        // Debe pertenecer a la tabla que estamos consultando
+        query.descend("tablaOrigen").constrain(tablaOrigen);
+        // Y debe coincidir con el alias que el cliente envió en ?include=...
+        query.descend("nombreRelacion").constrain(nombreRelacion);
+
+        ObjectSet<RelacionConfig> result = query.execute();
+        return result.hasNext() ? result.next() : null;
+    }
+    
+    /**
+     * Obtiene relaciones entre tablas
+     * @param tablaPrincipal Tabla 
+     * @param includes Otras tablas
+     * @return 
+     */
+    public List<RelacionConfig> getRelaciones(String tablaPrincipal, String includes) {
+        if (includes == null || includes.isEmpty()) return new ArrayList<>();
+
+        String[] nombres = includes.split(","); // Soporta: ?include=cliente,empresa
+        List<RelacionConfig> relsEncontradas = new ArrayList<>();
+
+        for (String nombre : nombres) {
+            // Buscamos en db4o la relación que pertenezca a la tabla origen y tenga ese nombre
+            RelacionConfig rel = metaDao.buscarRelacion(tablaPrincipal, nombre.trim());
+            if (rel != null) {
+                relsEncontradas.add(rel);
+            }
+        }
+        return relsEncontradas;
     }
 }

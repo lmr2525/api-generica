@@ -12,17 +12,12 @@ public class ColumnaConfig {
     Long id;
     String nombre;
     String tipo;
-    boolean pk;
     boolean nullable = true;
     boolean contrasena = false;
     boolean visible = true; // Para el DTO
     boolean autoincremental;
     boolean unico;
     Object valorDefecto;
-    
-    // Relaciones (foreign key)
-    String referenciaTabla;
-    String referenciaCol;
 
     public Long getId() {
         return id;
@@ -46,14 +41,6 @@ public class ColumnaConfig {
 
     public void setTipo(String tipo) {
         this.tipo = tipo;
-    }
-
-    public boolean isPk() {
-        return pk;
-    }
-
-    public void setPk(boolean pk) {
-        this.pk = pk;
     }
 
     public boolean isNullable() {
@@ -102,21 +89,5 @@ public class ColumnaConfig {
 
     public void setValorDefecto(String valorDefecto) {
         this.valorDefecto = valorDefecto;
-    }
-
-    public String getReferenciaTabla() {
-        return referenciaTabla;
-    }
-
-    public void setReferenciaTabla(String referenciaTabla) {
-        this.referenciaTabla = referenciaTabla;
-    }
-
-    public String getReferenciaCol() {
-        return referenciaCol;
-    }
-
-    public void setReferenciaCol(String referenciaCol) {
-        this.referenciaCol = referenciaCol;
     }
 }
