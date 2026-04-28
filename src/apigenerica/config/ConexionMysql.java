@@ -120,6 +120,7 @@ public class ConexionMysql {
                 "  `tipo` VARCHAR(50) NOT NULL," +
                 "  `longitud` INT NOT NULL," +
                 "  `nullable` TINYINT(1) DEFAULT 1," +
+                "  `es_contrasena` TINYINT(1) DEFAULT 0," +
                 "  `es_visible` TINYINT(1) DEFAULT 1," +
                 "  `autoincremental` TINYINT(1) DEFAULT 0," +
                 "  `unico` TINYINT(1) DEFAULT 0," +
@@ -135,15 +136,13 @@ public class ConexionMysql {
                 "  `nombre` VARCHAR(100) NOT NULL," +
                 "  `tabla_origen` INT NOT NULL," +
                 "  `fk_columna` VARCHAR(100) NOT NULL," +    
-                "  `tabla_destino` INT NOT NULL," +
-                "  `cardinalidad` VARCHAR(4) NOT NULL," +
+                "  `tabla_destino` VARCHAR(100) NOT NULL," +
+                "  `cardinalidad` VARCHAR(10) NOT NULL," +
                 "  FOREIGN KEY (`tabla_origen`) REFERENCES `erp_meta_tablas`(`id`) ON DELETE CASCADE" +
-                "  FOREIGN KEY (`fk_columna`) REFERENCES `erp_meta_columnas`(`id`) ON DELETE CASCADE" +
-                "  FOREIGN KEY (`tabla_destino`) REFERENCES `erp_meta_tablas`(`id`) ON DELETE CASCADE" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
 
-            System.out.println("[API] Estructura ERP verificada en erp_sistema.");
+            System.out.println("[API] Estructura de metadatos sincronizada.");
 
         } catch (SQLException e) {
             System.err.println("[API] Error creando estructura ERP: " + e.getMessage());

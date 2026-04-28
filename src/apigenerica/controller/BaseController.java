@@ -55,6 +55,13 @@ public class BaseController {
         // Validaciones
         validador.validarMetadata(request);
 
+        // Ordenar tablas
+        List<String> nombresTablas = request.getTabla().stream()
+                                    .map(TablaConfig::getNombreLogico)
+                                    .collect(Collectors.toList());
+        List<String> orden = orderService.ordenarTablas(nombresTablas);
+        request.getTabla().sort(Comparator.comparingInt(t -> orden.indexOf(t.getNombreLogico())));
+        
         // Asegurar que la base de datos existe
         crearBaseDatos(request);
 
@@ -463,20 +470,24 @@ public class BaseController {
     private int procesarFormulario(ApiRequest request) throws SQLException {
         int tablasCreadas = 0;
         for (TablaConfig t : request.getTabla()) {
+            // Limpieza y validación
             validador.validarNombre(t.getNombreLogico());
-            String sql = sqlService.generarCreateSql(t.getNombreLogico(),
-                    t.getColumnas(), request.getRelaciones());
-            sqlService.ejecutarSql(request.getBaseDatos(), sql);
             t.setNombreDb(request.getBaseDatos());
             
-            // Asignar relaciones
+            // Buscar relaciones en las que la tabla actual es la origen (tiene la fk)
+            List<RelacionConfig> relacionesTabla = new ArrayList<>();
             if (request.getRelaciones() != null) {
-                List<RelacionConfig> relacionesTabla = request.getRelaciones().stream()
+                relacionesTabla = request.getRelaciones().stream()
                     .filter(r -> r.getTablaOrigen().equalsIgnoreCase(t.getNombreLogico()))
                     .collect(Collectors.toList());
-                t.setRelaciones(relacionesTabla);
             }
+            t.setRelaciones(relacionesTabla);
 
+            // Crear tabla
+            String sql = sqlService.generarCreateSql(t, relacionesTabla);
+            sqlService.ejecutarSql(request.getBaseDatos(), sql);
+            
+            // Persistencia de metadatos
             metaService.guardarConfiguracion(t);
             tablasCreadas++;
         }

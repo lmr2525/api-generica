@@ -8,6 +8,7 @@ import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.ApiRequest;
+import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
 import java.util.HashSet;
 import java.util.List;
@@ -91,6 +92,32 @@ public class ValidadorService {
             TablaConfig config = metaDao.getConfiguracion(tabla);
             if (config == null) {
                 throw new ValidacionException("No hay metadatos configurados para la tabla: " + tabla);
+            }
+        }
+    }
+    
+    /**
+     * Valida que las relaciones apunten a tablas y columnas existentes en la petición
+     * 
+     * @param relaciones Metadatos de las relaciones
+     * @param tablas Lista de tablas cuyas relaciones se validarán
+     */
+    private void validarRelaciones(List<RelacionConfig> relaciones, List<TablaConfig> tablas) {
+        for (RelacionConfig rel : relaciones) {
+            // Verificar que la tabla origen esté en el request
+            TablaConfig origen = tablas.stream()
+                .filter(t -> t.getNombreLogico().equalsIgnoreCase(rel.getTablaOrigen()))
+                .findFirst()
+                .orElseThrow(() -> new ValidacionException("La relación '" + rel.getNombreRelacion() + 
+                        "' referencia a una tabla origen inexistente: " + rel.getTablaOrigen()));
+
+            // Verificar que la columna FK exista en la tabla origen
+            boolean existeCol = origen.getColumnas().stream()
+                .anyMatch(c -> c.getNombre().equalsIgnoreCase(rel.getFkColumna()));
+            
+            if (!existeCol) {
+                throw new ValidacionException("La columna FK '" + rel.getFkColumna() + 
+                        "' no existe en la tabla '" + rel.getTablaOrigen() + "'");
             }
         }
     }

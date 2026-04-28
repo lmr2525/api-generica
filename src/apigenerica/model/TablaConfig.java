@@ -16,6 +16,7 @@ public class TablaConfig {
     String nombreLogico;
     String nombreAmigable;
     List<ColumnaConfig> columnas;
+    List<RelacionConfig> relaciones;
 
     public Long getId() {
         return id;
@@ -56,6 +57,12 @@ public class TablaConfig {
     public void setColumnas(List<ColumnaConfig> columnas) {
         this.columnas = columnas;
     }
-    
-    
+
+    public List<RelacionConfig> getRelaciones() {
+        return relaciones;
+    }
+
+    public void setRelaciones(List<RelacionConfig> relaciones) {
+        this.relaciones = relaciones;
+    }
 }

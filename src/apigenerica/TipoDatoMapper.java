@@ -7,6 +7,7 @@ package apigenerica;
 import apigenerica.model.ColumnaConfig;
 import java.sql.Types;
 import java.time.LocalDate;
+import org.mindrot.jbcrypt.BCrypt;
 
 /**
  * @author Grupo1 
@@ -38,6 +39,8 @@ public class TipoDatoMapper {
         switch (tipo.toUpperCase()) {
             case "TEXTO_CORTO":
                 return "VARCHAR(255)";
+            case "CONTRASENA":
+                return "CHAR(60)"; // Hash BCrypt
             case "TEXTO_LARGO":
                 return "TEXT";
             case "ENTERO":
@@ -80,6 +83,8 @@ public class TipoDatoMapper {
                 } catch (NumberFormatException e) {
                     throw new Exception("El valor no es un entero válido");
                 }
+            case "CONTRASENA":
+                return BCrypt.hashpw(valorStr, BCrypt.gensalt());
             case "DECIMAL":
                 return Double.valueOf(valorStr);
             case "BINARIO":

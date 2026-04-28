@@ -8,12 +8,11 @@ import apigenerica.model.ColumnaConfig;
 import apigenerica.TipoDatoMapper;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.RelacionConfig;
-import java.util.ArrayList;
+import apigenerica.model.TablaConfig;
 import java.util.List;
 
 /**
- * @author Grupo1 
- * Operaciones SQL genéricas (no CRUD)
+ * @author Grupo1 Operaciones SQL genéricas (no CRUD)
  */
 public class SqlService {
 
@@ -28,19 +27,28 @@ public class SqlService {
     /**
      * Construye una sentencia CREATE TABLE
      *
-     * @param nombreTabla Nombre de la tabla
-     * @param campos Definición de los campos de la tabla
+     * @param tabla Metadatos de la tabla
+     * @param relaciones Datos de relaciones de la tabla
      * @return SQL listo para ejecutar
      */
-    public String generarCreateSql(String nombreTabla, List<ColumnaConfig> campos) {
+    public String generarCreateSql(TablaConfig tabla, List<RelacionConfig> relaciones) {
         try {
+            String nombreTabla = tabla.getNombreLogico();
+            List<ColumnaConfig> campos = tabla.getColumnas();
             validador.validarNombre(nombreTabla);
             validador.validarColumnasUnicas(campos);
 
             StringBuilder sql = new StringBuilder("CREATE TABLE " + nombreTabla + " (");
+            sql.append("`id` BIGINT AUTO_INCREMENT PRIMARY KEY, ");
             // Recorrer lista de campos
             for (int i = 0; i < campos.size(); i++) {
                 ColumnaConfig c = campos.get(i);
+
+                // Si el usuario envió una columna llamada id, se ignora
+                if (c.getNombre().equalsIgnoreCase("id")) {
+                    continue;
+                }
+
                 // `Nombre de la tabla` + " " + tipo de dato
                 sql.append("`").append(c.getNombre()).append("`").append(" ")
                         .append(TipoDatoMapper.toSql(c.getTipo()));
@@ -57,43 +65,52 @@ public class SqlService {
                 if (c.isAutoincremental() && TipoDatoMapper.toSql(c.getTipo()).contains("INT")) {
                     sql.append(" AUTO_INCREMENT");
                 }
-                // Si es clave primaria
-                if (c.isPk()) {
-                    sql.append(" PRIMARY KEY");
-                }
+
                 // Si es único
                 if (c.isUnico()) {
                     sql.append(" UNIQUE");
                 }
 
                 // Separar de la siguiente columna
-                if (i < campos.size() - 1) {
-                    sql.append(", ");
-                }
+                sql.append(", ");
             }
 
             // Añadir Foreign Keys
-            for (ColumnaConfig c : campos) {
-                if (c.getReferenciaTabla() != null) {
-                    sql.append(", FOREIGN KEY (").append(c.getNombre())
-                            .append(") REFERENCES `").append(c.getReferenciaTabla())
-                            .append("`(`").append(c.getReferenciaCol()).append("`)");
+            if (relaciones != null && !relaciones.isEmpty()) {
+                for (int i = 0; i < relaciones.size(); i++) {
+                    RelacionConfig rel = relaciones.get(i);
+
+                    sql.append("CONSTRAINT `fk_").append(nombreTabla).append("_").append(rel.getTablaDestino()).append("` ")
+                            .append("FOREIGN KEY (`").append(rel.getFkColumna()).append("`) ")
+                            .append("REFERENCES `").append(rel.getTablaDestino()).append("`(`id`) ")
+                            .append("ON DELETE CASCADE ON UPDATE CASCADE");
+
+                    if (i < relaciones.size() - 1) {
+                        sql.append(", ");
+                    }
+                }
+            } else {
+                // Si no hay relaciones, quitar la última coma y espacio de las columnas
+                if (sql.toString().endsWith(", ")) {
+                    sql.setLength(sql.length() - 2);
                 }
             }
             sql.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
             return sql.toString();
         } catch (Exception e) {
-            throw new ValidacionException(e.getMessage());
+            throw new ValidacionException("Error al generar SQL para '" + tabla.getNombreLogico() + "': " + e.getMessage());
         }
     }
-    
+
     /**
      * Construye una sentencia CREATE DATABASE
+     *
      * @param nombreDb
-     * @return 
+     * @return
      */
     public String generarCreateDbSql(String nombreDb) {
-        return "CREATE DATABASE IF NOT EXISTS `" + nombreDb + "`";
+        return "CREATE DATABASE IF NOT EXISTS `" + nombreDb
+                + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;";
     }
 
     /**
@@ -105,5 +122,21 @@ public class SqlService {
     public String generarDropSql(String nombreTabla) {
         validador.validarNombre(nombreTabla);
         return "DROP TABLE IF EXISTS `" + nombreTabla + "`;";
+    }
+
+    /**
+     * Ejecutar un script SQL
+     * 
+     * @param db Base de datos en la que se ejecutará la sentencia
+     * @param sql Script SQL
+     * @throws SQLException 
+     */
+    public void ejecutarSql(String db, String sql) throws SQLException {
+        try (Connection conn = ConexionMysql.getConexion(db); Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            System.err.println("Error ejecutando: " + sql);
+            throw e;
+        }
     }
 }

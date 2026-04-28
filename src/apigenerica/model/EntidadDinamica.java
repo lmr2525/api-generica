@@ -9,7 +9,6 @@ import java.util.Map;
 
 /**
  * @author Grupo1
- *
  * Representa una fila de una tabla como un mapa de clave-valor
  */
 public class EntidadDinamica {
