@@ -49,24 +49,28 @@ public class BaseController {
         this.orderService = orderService;
     }
 
-    public void crearTabla(Context ctx) throws SQLException {
-        // Convertir JSON a objeto ApiRequest
-        ApiRequest request = ctx.bodyAsClass(ApiRequest.class);
-        // Validaciones
-        validador.validarMetadata(request);
+    public void crearTabla(Context ctx) {
+        try {
+            // Convertir JSON a objeto ApiRequest
+            ApiRequest request = ctx.bodyAsClass(ApiRequest.class);
+            // Validaciones
+            validador.validarMetadata(request);
 
-        // Ordenar tablas
-        List<String> nombresTablas = request.getTabla().stream()
-                                    .map(TablaConfig::getNombreLogico)
-                                    .collect(Collectors.toList());
-        List<String> orden = orderService.ordenarTablas(nombresTablas);
-        request.getTabla().sort(Comparator.comparingInt(t -> orden.indexOf(t.getNombreLogico())));
-        
-        // Asegurar que la base de datos existe
-        crearBaseDatos(request);
+            // Ordenar tablas
+            List<String> nombresTablas = request.getTabla().stream()
+                                        .map(TablaConfig::getNombreLogico)
+                                        .collect(Collectors.toList());
+            List<String> orden = orderService.ordenarTablas(nombresTablas);
+            request.getTabla().sort(Comparator.comparingInt(t -> orden.indexOf(t.getNombreLogico())));
 
-        int tablasCreadas = procesarFormulario(request);
-        ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok("Se han creado " + tablasCreadas + " tablas."));
+            // Asegurar que la base de datos existe
+            crearBaseDatos(request);
+
+            int tablasCreadas = procesarFormulario(request);
+            ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok("Se han creado " + tablasCreadas + " tablas."));
+        } catch (SQLException e) {
+            throw new BaseDatosException("Error al crear tablas.", e);
+        }
     }
 
     /**
@@ -142,7 +146,10 @@ public class BaseController {
             } // Si no hay relaciones pero sí metadatos de columnas, SELECT normal
             else if (!columnas.isEmpty()) {
                 resultados = baseDao.buscarTodo(conn, tabla, columnas, filtros, sort, order, limite, offset);
+            } else {
+                throw new BaseDatosException("La tabla '" + tabla + "' no tiene columnas configuradas.", null);
             }
+            aplicarFiltroPrivacidadLista(resultados, columnas);
             ctx.json(ApiRespuesta.ok(resultados));
         } catch (SQLException e) {
             throw new BaseDatosException("Error al consultar tabla '" + tabla + "'.", e);
@@ -205,6 +212,7 @@ public class BaseController {
                 throw new RecursoNoEncontradoException("No se encontró registro.");
             }
 
+            aplicarFiltroPrivacidadEntidad((EntidadDinamica) resultado, columnas);
             ctx.json(ApiRespuesta.ok(resultado));
         } catch (SQLException e) {
             throw new BaseDatosException("Error al buscar el registro por ID.", e);
@@ -517,5 +525,25 @@ public class BaseController {
             }
         }
         return convertidos;
+    }
+    
+  /**
+   * Elimina columnas que no deben ser visibles al usuario
+   * y contraseñas
+   */
+    private void aplicarFiltroPrivacidadEntidad(EntidadDinamica entidad, List<ColumnaConfig> configs) {
+        if (entidad == null || configs == null) return;
+
+        configs.stream()
+            .filter(c -> c.isContrasena() || !c.isVisible())
+            .forEach(c -> entidad.getTodo().remove(c.getNombre()));
+    }
+
+    /**
+     * Filtra una lista de entidades
+     */
+    private void aplicarFiltroPrivacidadLista(List<EntidadDinamica> entidades, List<ColumnaConfig> configs) {
+        if (entidades == null) return;
+        entidades.forEach(e -> aplicarFiltroPrivacidadEntidad(e, configs));
     }
 }

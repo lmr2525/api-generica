@@ -193,11 +193,11 @@ public class MetaDao {
 
     /**
      * Busca qué tablas tienen una relación apuntando hacia la tabla
-     * especificada. 
-     * 
-     * 
+     * especificada.
+     *
+     *
      * @param nombreTablaDestino
-     * @return 
+     * @return
      */
     public List<RelacionConfig> getRelacionesHijas(String nombreTablaDestino) {
         List<RelacionConfig> relacionesHijas = new ArrayList<>();
@@ -276,6 +276,32 @@ public class MetaDao {
             }
         } catch (SQLException e) {
             throw new BaseDatosException("Error al listar todas las tablas.", e);
+        }
+        return tablas;
+    }
+
+    /**
+     * Obtener los nombres de las tablas (lógico y amigable) de la base de datos
+     * especificada
+     *
+     * @param nombreDb Nombre de la base de datos
+     * @return Lista de metadatos de las tablas
+     */
+    public List<TablaConfig> listarTablasPorDb(String nombreDb) {
+        List<TablaConfig> tablas = new ArrayList<>();
+        String sql = "SELECT nombre_logico, nombre_amigable FROM erp_meta_tablas WHERE nombre_db = ?";
+
+        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, nombreDb);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                TablaConfig t = new TablaConfig();
+                t.setNombreLogico(rs.getString("nombre_logico"));
+                t.setNombreAmigable(rs.getString("nombre_amigable"));
+                tablas.add(t);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
         return tablas;
     }

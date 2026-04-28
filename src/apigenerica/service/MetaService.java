@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author Grupo1
+ * @author Grupo1 
  * Operaciones con los metadatos
  */
 public class MetaService {
@@ -31,17 +31,16 @@ public class MetaService {
     }
 
     /**
-     * Guardar configuración si ya se tiene el objeto
-     * TablaConfig (Formulario)
-     * 
-     * @param tabla 
+     * Guardar configuración si ya se tiene el objeto TablaConfig (Formulario)
+     *
+     * @param tabla
      */
     public void guardarConfiguracion(TablaConfig tabla) {
         // Generar nombre amigable si no lo tiene
         if (tabla.getNombreAmigable() == null || tabla.getNombreAmigable().trim().isEmpty()) {
             tabla.setNombreAmigable(crearNombreAmigable(tabla.getNombreLogico()));
         }
-        
+
         // Marcar columnas de contraseña automáticamente
         if (tabla.getColumnas() != null) {
             for (ColumnaConfig col : tabla.getColumnas()) {
@@ -51,7 +50,7 @@ public class MetaService {
                 }
             }
         }
-    
+
         try {
             // Guardar objeto
             metaDao.guardarConfiguracion(tabla);
@@ -59,7 +58,7 @@ public class MetaService {
             throw new BaseDatosException("Error al guardar configuración de '" + tabla.getNombreLogico() + "'.", e);
         }
     }
-    
+
     /**
      * Borra la configuración de la tabla en db4o.
      *
@@ -82,14 +81,13 @@ public class MetaService {
         String nombreAmigable = nombreLogico.replace("_", " ");
         return nombreAmigable.substring(0, 1).toUpperCase() + nombreAmigable.substring(1);
     }
-    
+
     /**
      * Obtiene las relaciones entre una tabla principal y una o más tablas
-     * secundarias.
-     * Busca la configuración de la tabla principal (metadatos) y con ella su
-     * lista de relaciones.
-     * Procesa una lista de includes, separando cada elemento en un array, 
-     * 
+     * secundarias. Busca la configuración de la tabla principal (metadatos) y
+     * con ella su lista de relaciones. Procesa una lista de includes, separando
+     * cada elemento en un array,
+     *
      * @param tablaPrincipal Tabla padre
      * @param includes Cadena de texto con las tablas secundarias
      * @return Lista de relaciones
@@ -129,11 +127,12 @@ public class MetaService {
 
         return relacionesFinales;
     }
-    
+
     /**
-     * Obtiene todas las relaciones internas que existen entre una lista de tablas.
-     * Ideal para operaciones transaccionales donde necesitamos inyectar FKs.
-     * 
+     * Obtiene todas las relaciones internas que existen entre una lista de
+     * tablas. Ideal para operaciones transaccionales donde necesitamos inyectar
+     * FKs.
+     *
      * @param tablas Lista de tablas involucradas en la transacción
      * @return Lista de relaciones pertinentes entre estas tablas
      */
@@ -147,7 +146,7 @@ public class MetaService {
         // Revisar cada tabla de la lista
         for (String tablaOrigen : tablas) {
             TablaConfig config = metaDao.getConfiguracion(tablaOrigen);
-            
+
             if (config != null && config.getRelaciones() != null) {
                 for (RelacionConfig rel : config.getRelaciones()) {
                     // Si la tabla a la que apunta la FK TAMBIÉN está en nuestra lista de inserción
@@ -160,10 +159,12 @@ public class MetaService {
 
         return relacionesFinales;
     }
-    
+
     public Map<String, Object> obtenerGuiaUsuario(String nombreTabla) {
         TablaConfig tabla = metaDao.getConfiguracion(nombreTabla);
-        if (tabla == null) throw new RecursoNoEncontradoException("Tabla no configurada");
+        if (tabla == null) {
+            throw new RecursoNoEncontradoException("Tabla no configurada");
+        }
 
         Map<String, Object> respuesta = new HashMap<>();
         respuesta.put("tabla", tabla.getNombreLogico());
@@ -174,7 +175,7 @@ public class MetaService {
         Map<String, Object> relaciones = new HashMap<>();
 
         // Padres: Lo que la tabla ya tiene dentro (sus FKs salientes)
-        relaciones.put("padres", tabla.getRelaciones()); 
+        relaciones.put("padres", tabla.getRelaciones());
 
         // Hijas: Quién apunta a ella (usando el método que creamos antes)
         relaciones.put("hijas", metaDao.getRelacionesHijas(nombreTabla));
@@ -182,12 +183,33 @@ public class MetaService {
         respuesta.put("relaciones", relaciones);
         return respuesta;
     }
-    
+
     public TablaConfig getConfiguracion(String nombreLogico) {
         TablaConfig config = metaDao.getConfiguracion(nombreLogico);
         if (config == null) {
             throw new RecursoNoEncontradoException("Tabla no registrada: " + nombreLogico);
         }
         return config;
+    }
+
+    /**
+     * Devuelve la lista de todas las tablas registradas para una base de datos.
+     *
+     * @param nombreDb Nombre de la base de datos
+     * @return Lista de metadatos de tablas
+     */
+    public List<TablaConfig> listarTablas(String nombreDb) {
+        // Obtener nombres lógicos y amigables
+        return metaDao.listarTablasPorDb(nombreDb);
+    }
+
+    /**
+     * Devuelve la configuración completa de una tabla (columnas y relaciones).
+     *
+     * @param nombreLogico Nombre de la tabla en MySQL
+     * @return Metadatos de la tabla
+     */
+    public TablaConfig obtenerDetalleTabla(String nombreLogico) {
+        return metaDao.getConfiguracion(nombreLogico);
     }
 }

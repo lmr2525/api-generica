@@ -40,7 +40,8 @@ public class ApiGenerica {
         AuthController authCtrl = new AuthController(baseDao);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
-
+        MetadataController metaCtrl = new MetadataController(metaService, validador);
+        
         // ── Crear servidor Javalin ───────────────────────────────────
         Javalin app = Javalin.create(config -> {
             // Habilitar CORS para que el frontend pueda consumir la API
@@ -49,9 +50,16 @@ public class ApiGenerica {
             config.enableDevLogging();
         }).start(7000);
 
-        // ── Endpoints de metadatos (creación de tablas) ──────────────
+        // ── Endpoints de metadatos ──────────────
+        // Crear tablas
         app.post("/api/metadata", ctx -> baseCtrl.crearTabla(ctx));
 
+        // Obtener metadatos de todas las tablas
+        app.get("/api/metadata/tablas", ctx -> metaCtrl.listarTablas(ctx));
+
+        // Obtener los metadatos de una tabla
+        app.get("/api/metadata/tablas/{nombreTabla}", ctx -> metaCtrl.obtenerEstructuraTabla(ctx));
+        
         // ── Endpoints de autenticación ───────────────────────────────
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
 
@@ -63,6 +71,11 @@ public class ApiGenerica {
         app.get("/api/erp/modulos", ctx -> moduloCtrl.getAll(ctx));
         app.post("/api/erp/modulos", ctx -> moduloCtrl.create(ctx));
         app.delete("/api/erp/modulos/{id}", ctx -> moduloCtrl.delete(ctx));
+
+        // ── Endpoints CRUD transaccionales ─────────────────────────────────────
+        app.post("/api/batch/insert", ctx -> baseCtrl.insertTransaccional(ctx));
+        app.put("/api/batch/update", ctx -> baseCtrl.updateTransaccional(ctx));
+        app.delete("/api/batch/delete", ctx -> baseCtrl.deleteTransaccional(ctx));
 
         // ── Endpoints CRUD genéricos (cualquier tabla) ───────────────
         // IMPORTANTE: Van al final para no interceptar las rutas específicas
