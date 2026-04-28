@@ -22,6 +22,7 @@ import io.javalin.http.HttpCode;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,6 +32,8 @@ import java.util.stream.Collectors;
 /**
  * Controlador genérico CRUD para cualquier tabla de la base de datos. Usa los
  * metadatos almacenados en MySQL para mapear los resultados.
+ *
+ * @author Grupo1
  */
 public class BaseController {
 
@@ -49,6 +52,11 @@ public class BaseController {
         this.orderService = orderService;
     }
 
+    /**
+     * Crea una tabla en MySQL
+     *
+     * @param ctx Contexto de la petición HTTP
+     */
     public void crearTabla(Context ctx) {
         try {
             // Convertir JSON a objeto ApiRequest
@@ -56,14 +64,14 @@ public class BaseController {
             // Validaciones
             validador.validarMetadata(request);
 
-            // Ordenar tablas
+            // Ordenar tablas para evitar errores por foreign keys
             List<String> nombresTablas = request.getTabla().stream()
-                                        .map(TablaConfig::getNombreLogico)
-                                        .collect(Collectors.toList());
+                    .map(TablaConfig::getNombreLogico)
+                    .collect(Collectors.toList());
             List<String> orden = orderService.ordenarTablas(nombresTablas);
             request.getTabla().sort(Comparator.comparingInt(t -> orden.indexOf(t.getNombreLogico())));
 
-            // Asegurar que la base de datos existe
+            // Asegurar que la base de datos existe. Crearla si no
             crearBaseDatos(request);
 
             int tablasCreadas = procesarFormulario(request);
@@ -87,16 +95,50 @@ public class BaseController {
         sqlService.ejecutarSql(null, sql);
     }
 
+    /*
+    * Valida una lista de tablas recibidas desde el formulario,
+    * genera el SQL de creación y persiste los metadatos en db4o.
+    *
+    * @param request Datos de la petición
+    * @return Número de tablas creadas
+     */
+    private int procesarFormulario(ApiRequest request) throws SQLException {
+        int tablasCreadas = 0;
+        for (TablaConfig t : request.getTabla()) {
+            // Limpieza y validación
+            validador.validarNombre(t.getNombreLogico());
+            t.setNombreDb(request.getBaseDatos());
+
+            // Buscar relaciones en las que la tabla actual es la origen (tiene la fk)
+            List<RelacionConfig> relacionesTabla = new ArrayList<>();
+            if (request.getRelaciones() != null) {
+                relacionesTabla = request.getRelaciones().stream()
+                        .filter(r -> r.getTablaOrigen().equalsIgnoreCase(t.getNombreLogico()))
+                        .collect(Collectors.toList());
+            }
+            t.setRelaciones(relacionesTabla);
+
+            // Crear tabla
+            String sql = sqlService.generarCreateSql(t, relacionesTabla);
+            sqlService.ejecutarSql(request.getBaseDatos(), sql);
+
+            // Persistencia de metadatos
+            metaService.guardarConfiguracion(t);
+            tablasCreadas++;
+        }
+        return tablasCreadas;
+    }
+
     /**
      * Obtener datos de una tabla
      *
      * @param ctx Contexto de la petición HTTP
      */
     public void fetchTodo(Context ctx) {
-        // Obtener parámetros de la URL
+        // Obtener nombre de la tabla de la URL
         String tabla = ctx.pathParam("tabla");
         validador.validarNombre(tabla);
-        
+
         // Filtros
         Map<String, String> filtros = new HashMap<>();
         // Ignorar los siguientes parámetros
@@ -106,7 +148,7 @@ public class BaseController {
                 filtros.put(key, values.get(0));
             }
         });
-        
+
         // Parámetros de paginación y orden
         String includes = ctx.queryParam("include"); // Ejemplo: ?include=cliente,empresa
         int limite = ctx.queryParamAsClass("limit", Integer.class).getOrDefault(20);
@@ -140,8 +182,8 @@ public class BaseController {
             // Si hay relaciones, SELECT con includes
             if (!relaciones.isEmpty()) {
                 resultados = baseDao.buscarConIncludes(
-                    conn, tabla, columnas, relaciones, colsHijas, 
-                    filtros, sort, order, limite, offset
+                        conn, tabla, columnas, relaciones, colsHijas,
+                        filtros, sort, order, limite, offset
                 );
             } // Si no hay relaciones pero sí metadatos de columnas, SELECT normal
             else if (!columnas.isEmpty()) {
@@ -428,16 +470,20 @@ public class BaseController {
             throw new BaseDatosException("Error al eliminar.", e);
         }
     }
-    
+
     public void deleteTransaccional(Context ctx) {
         Map<String, Object> body = ctx.bodyAsClass(Map.class);
 
         Number idRaw = (Number) body.get("id");
-        if (idRaw == null) throw new ValidacionException("El campo 'id' es obligatorio.");
+        if (idRaw == null) {
+            throw new ValidacionException("El campo 'id' es obligatorio.");
+        }
         Long id = idRaw.longValue();
 
         List<String> tablas = (List<String>) body.get("tablas");
-        if (tablas == null || tablas.isEmpty()) throw new ValidacionException("El campo 'tablas' es obligatorio.");
+        if (tablas == null || tablas.isEmpty()) {
+            throw new ValidacionException("El campo 'tablas' es obligatorio.");
+        }
 
         // Ordenar y luego invertir para respetar FK en el DELETE
         List<String> orden = orderService.ordenarTablas(tablas);
@@ -450,13 +496,17 @@ public class BaseController {
                 break;
             }
         }
-        if (baseDatos == null) throw new RecursoNoEncontradoException("No se encontró configuración.");
+        if (baseDatos == null) {
+            throw new RecursoNoEncontradoException("No se encontró configuración.");
+        }
 
         try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
             conn.setAutoCommit(false);
             try {
                 int filas = baseDao.eliminarTransaccional(conn, orden, id);
-                if (filas == 0) throw new RecursoNoEncontradoException("No se encontraron registros.");
+                if (filas == 0) {
+                    throw new RecursoNoEncontradoException("No se encontraron registros.");
+                }
                 conn.commit();
                 ctx.json(ApiRespuesta.ok("Se eliminaron registros en " + orden.size() + " tablas."));
             } catch (Exception e) {
@@ -466,40 +516,6 @@ public class BaseController {
         } catch (SQLException e) {
             throw new BaseDatosException("Error de conexión.", e);
         }
-    }
-
-    /*
-    * Valida una lista de tablas recibidas desde el formulario,
-    * genera el SQL de creación y persiste los metadatos en db4o.
-    *
-    * @param request Datos de la petición
-    * @return Número de tablas creadas
-     */
-    private int procesarFormulario(ApiRequest request) throws SQLException {
-        int tablasCreadas = 0;
-        for (TablaConfig t : request.getTabla()) {
-            // Limpieza y validación
-            validador.validarNombre(t.getNombreLogico());
-            t.setNombreDb(request.getBaseDatos());
-            
-            // Buscar relaciones en las que la tabla actual es la origen (tiene la fk)
-            List<RelacionConfig> relacionesTabla = new ArrayList<>();
-            if (request.getRelaciones() != null) {
-                relacionesTabla = request.getRelaciones().stream()
-                    .filter(r -> r.getTablaOrigen().equalsIgnoreCase(t.getNombreLogico()))
-                    .collect(Collectors.toList());
-            }
-            t.setRelaciones(relacionesTabla);
-
-            // Crear tabla
-            String sql = sqlService.generarCreateSql(t, relacionesTabla);
-            sqlService.ejecutarSql(request.getBaseDatos(), sql);
-            
-            // Persistencia de metadatos
-            metaService.guardarConfiguracion(t);
-            tablasCreadas++;
-        }
-        return tablasCreadas;
     }
 
     private EntidadDinamica convertirTipos(EntidadDinamica datos, List<ColumnaConfig> columnas) {
@@ -526,24 +542,27 @@ public class BaseController {
         }
         return convertidos;
     }
-    
-  /**
-   * Elimina columnas que no deben ser visibles al usuario
-   * y contraseñas
-   */
+
+    /**
+     * Elimina columnas que no deben ser visibles al usuario y contraseñas
+     */
     private void aplicarFiltroPrivacidadEntidad(EntidadDinamica entidad, List<ColumnaConfig> configs) {
-        if (entidad == null || configs == null) return;
+        if (entidad == null || configs == null) {
+            return;
+        }
 
         configs.stream()
-            .filter(c -> c.isContrasena() || !c.isVisible())
-            .forEach(c -> entidad.getTodo().remove(c.getNombre()));
+                .filter(c -> c.isContrasena() || !c.isVisible())
+                .forEach(c -> entidad.getTodo().remove(c.getNombre()));
     }
 
     /**
      * Filtra una lista de entidades
      */
     private void aplicarFiltroPrivacidadLista(List<EntidadDinamica> entidades, List<ColumnaConfig> configs) {
-        if (entidades == null) return;
+        if (entidades == null) {
+            return;
+        }
         entidades.forEach(e -> aplicarFiltroPrivacidadEntidad(e, configs));
     }
 }

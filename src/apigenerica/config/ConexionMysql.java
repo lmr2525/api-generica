@@ -43,6 +43,9 @@ public class ConexionMysql {
     /**
      * Obtiene una conexión del pool SIN base de datos seleccionada.
      * Usa conn.setCatalog(nombreBd) para cambiar de BD.
+     * 
+     * @return Conexión de MySQL
+     * @throws java.sql.SQLException
      */
     public static Connection getConexion() throws SQLException {
         return ds.getConnection();
@@ -52,6 +55,8 @@ public class ConexionMysql {
      * Obtiene una conexión del pool CON una base de datos específica.
      * 
      * @param baseDatos Nombre de la base de datos
+     * @return Conexión de MySQL
+     * @throws java.sql.SQLException
      */
     public static Connection getConexion(String baseDatos) throws SQLException {
         Connection conn = ds.getConnection();

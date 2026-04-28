@@ -55,7 +55,7 @@ public class ApiGenerica {
         // Crear tablas
         app.post("/api/metadata", ctx -> baseCtrl.crearTabla(ctx));
         // Obtener metadatos (lista de nombres) de todas las tablas
-        app.get("/api/metadata/tablas", ctx -> metaCtrl.listarTablas(ctx));
+        app.get("/api/metadata", ctx -> metaCtrl.listarTablas(ctx));
         // Obtener los metadatos de una tabla
         app.get("/api/metadata/tablas/{nombreTabla}", ctx -> metaCtrl.obtenerEstructuraTabla(ctx));
         

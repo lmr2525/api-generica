@@ -13,7 +13,7 @@ import apigenerica.service.ValidadorService;
 import io.javalin.http.Context;
 
 /**
- * Controlador metadatos
+ * Controlador para el envío de metadatos a los clientes
  * @author Grupo1
  */
 public class MetaController {
@@ -33,11 +33,12 @@ public class MetaController {
      * @param ctx Contexto de la petición HTTP
      */
     public void listarTablas(Context ctx) {
+        // Obtener nombre de la base de datos de la URL
         String db = ctx.queryParam("db");
         if (db == null || db.isEmpty()) {
             throw new ValidacionException("El parámetro 'db' (base de datos) es obligatorio.");
         }
-        
+        // Devolver la lista de nombres de las tablas
         ctx.json(ApiRespuesta.ok(metaService.listarTablas(db)));
     }
 
@@ -47,9 +48,11 @@ public class MetaController {
      * @param ctx Contexto de la petición HTTP
      */
     public void obtenerEstructuraTabla(Context ctx) {
+        // Obtener nombre de la tabla de la URL
         String nombreTabla = ctx.pathParam("nombreTabla");
-        validador.validarNombre(nombreTabla); // Reutilizamos tu validador
+        validador.validarNombre(nombreTabla);
 
+        // Obtener metadatos de la tabla
         TablaConfig config = metaService.getConfiguracion(nombreTabla);
         if (config == null) {
             throw new RecursoNoEncontradoException("No existen metadatos para la tabla: " + nombreTabla);

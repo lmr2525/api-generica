@@ -2,7 +2,6 @@ package apigenerica.controller;
 
 import apigenerica.config.ConexionMysql;
 import apigenerica.dao.BaseDao;
-import apigenerica.excepciones.BaseDatosException;
 import apigenerica.model.ApiRespuesta;
 import io.javalin.http.Context;
 
@@ -15,7 +14,6 @@ import java.util.Map;
 
 /**
  * Controlador para la autenticación de usuarios en el ERP.
- *
  * @author Grupo1
  */
 public class AuthController {
@@ -27,8 +25,9 @@ public class AuthController {
     }
 
     /**
-     * Endpoint: POST /api/auth/login
      * Verifica las credenciales de un empleado.
+     * 
+     * @param ctx Contexto de la petición HTTP
      */
     @SuppressWarnings("unchecked")
     public void login(Context ctx) {
@@ -41,7 +40,7 @@ public class AuthController {
             return;
         }
 
-        String sql = "SELECT * FROM `empleados` WHERE `Email` = ? AND `Contrasena` = ?";
+        String sql = "SELECT * FROM `erp_users` WHERE `Email` = ? AND `Contrasena` = ?";
         
         try (Connection conn = ConexionMysql.getConexion("prueba"); // Asumiendo que empleados está en 'prueba'
              PreparedStatement stmt = conn.prepareStatement(sql)) {
