@@ -4,6 +4,7 @@
  */
 package apigenerica.service;
 
+import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.ApiRequest;
@@ -18,6 +19,12 @@ import java.util.Set;
  */
 public class ValidadorService {
 
+    private final MetaDao metaDao;
+
+    public ValidadorService(MetaDao metaDao) {
+        this.metaDao = metaDao;
+    }
+    
     /**
      * Comprueba que el nombre no esté vacío
      *
@@ -49,15 +56,15 @@ public class ValidadorService {
     }
 
    /**
-    * Aplica reglas de validación sobre los metadatos recibidos
-    * en el JSON
-    * @param request 
+    * Aplica reglas de validación sobre 
+    * los metadatos recibidos en el JSON
+    * 
+    * @param request Request enviada por el cliente
     */
     public void validarMetadata(ApiRequest request) {
         if (request.getBaseDatos() == null || request.getBaseDatos().trim().isEmpty()) {
             throw new ValidacionException("La base de datos es obligatoria.");
         }
-        
         if (request.getTabla() == null || request.getTabla().isEmpty()) {
             throw new ValidacionException("Debe proporcionar al menos una tabla.");
         }
@@ -67,6 +74,24 @@ public class ValidadorService {
                 throw new ValidacionException("La tabla " + t.getNombreLogico() + " no tiene columnas.");
             }
             validarColumnasUnicas(t.getColumnas());
+        }
+        if (request.getRelaciones() != null) {
+            validarRelaciones(request.getRelaciones(), request.getTabla());
+        }
+    }
+    
+    /**
+     * Comprueba si la relación entre una lista de
+     * tablas existe en los metadatos
+     * 
+     * @param tablas Lista de tablas 
+     */
+    public void validarRelacionesExisten(List<String> tablas) {
+        for (String tabla : tablas) {
+            TablaConfig config = metaDao.getConfiguracion(tabla);
+            if (config == null) {
+                throw new ValidacionException("No hay metadatos configurados para la tabla: " + tabla);
+            }
         }
     }
 }

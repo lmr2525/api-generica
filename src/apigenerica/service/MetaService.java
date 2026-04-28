@@ -4,24 +4,17 @@
  */
 package apigenerica.service;
 
-import apigenerica.model.ColumnaConfig;
-import apigenerica.TipoDatoMapper;
-import apigenerica.config.ConexionMysql;
 import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
-import apigenerica.model.EntidadDinamica;
+import apigenerica.excepciones.RecursoNoEncontradoException;
+import apigenerica.model.ColumnaConfig;
 import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * @author Grupo1
@@ -48,115 +41,22 @@ public class MetaService {
         if (tabla.getNombreAmigable() == null || tabla.getNombreAmigable().trim().isEmpty()) {
             tabla.setNombreAmigable(crearNombreAmigable(tabla.getNombreLogico()));
         }
-        // Guardar objeto
-        metaDao.guardarConfiguracion(tabla);
-    }
-    
-    /**
-     * Extrae el nombre de la tabla de una sentencia SQL, lee sus metadatos
-     * desde MySQL y los persiste en db4o. (Script SQL)
-     * Solo procesa sentencias CREATE TABLE.
-     *
-     * @param baseDatos Base de datos donde se creó la tabla
-     * @param sql Sentencia SQL ejecutada
-     * @return TablaConfig creado, o null si no era un CREATE TABLE
-     * @throws java.sql.SQLException
-     */
-    public TablaConfig guardarConfiguracion(String baseDatos, String sql) throws SQLException {
-        // Extraer el nombre de la tabla de la sentencia SQL usando Regex
-        String nombreLogico = extraerNombreTabla(sql);
-
-        // Si no es un CREATE TABLE, devolver null
-        if (nombreLogico == null) return null; 
-
-        try {
-            // Leer los metadatos desde MySQL
-            List<ColumnaConfig> columnas = leerMetadatosSql(baseDatos, nombreLogico);
-            // Construir el objeto TablaConfig
-            TablaConfig tabla = new TablaConfig();
-            tabla.setNombreDb(baseDatos);
-            tabla.setNombreLogico(nombreLogico);
-            tabla.setColumnas(columnas); 
-            // Persistir metadatos
-            guardarConfiguracion(tabla);
-            return tabla;
-        } catch(SQLException e) {
-            throw new BaseDatosException("Error al guardar la configuración de '" + nombreLogico + "'.", e);
-        }
-    }
-    
-    /**
-    * Extrae el nombre de la tabla de una sentencia CREATE TABLE.
-    * Soporta nombres con y sin comillas invertidas.
-    *
-    * @param sql Sentencia SQL
-    * @return Nombre de la tabla, o null si no es un CREATE TABLE
-    */
-    private String extraerNombreTabla(String sql) {
-        // Busca "CREATE TABLE nombre" ignorando mayúsculas/minúsculas y comillas invertidas `
-        Pattern pattern = Pattern.compile("CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?`?(\\w+)`?",
-                Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(sql);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null;
-    }
-  
-    /**
-     * Realiza una consulta de los metadatos de una tabla de MySQL.
-     *
-     * @param baseDatos Nombre de la base de datos en la que 
-     * buscar la tabla
-     * @param nombreLogico Nombre de la tabla en MySQL
-     */
-    private List<ColumnaConfig> leerMetadatosSql(String baseDatos, String nombreLogico) throws SQLException {
-        try (Connection conn = ConexionMysql.getConexion()) {
-            DatabaseMetaData meta = conn.getMetaData();
-            
-            // Obtener columnas, primary key y foreign keys
-            try (ResultSet dbCols = meta.getColumns(baseDatos, null, nombreLogico, null);
-             ResultSet dbPk = meta.getPrimaryKeys(baseDatos, null, nombreLogico);
-             ResultSet dbFks = meta.getImportedKeys(baseDatos, null, nombreLogico)) {
-
-                // Almacenar primary key
-                String columnaPk = dbPk.next() ? dbPk.getString("COLUMN_NAME") : "";
-                List<ColumnaConfig> cols = new ArrayList<>();
-            
-                // Guardar otros cols
-                while (dbCols.next()) {
-                    // visible=true y contrasena=false por defecto (definido en ColumnaConfig)
-                    ColumnaConfig col = new ColumnaConfig();
-                    // Nombre de la columna
-                    String nombreCol = dbCols.getString("COLUMN_NAME");
-                    col.setNombre(nombreCol);
-                    // Es pk: true, no es pk: false
-                    col.setPk(nombreCol.equals(columnaPk));
-                    // Es nullable: true, no es nullable: false
-                    col.setNullable(dbCols.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
-                    // Tipo de dato
-                    col.setTipo(TipoDatoMapper.toTexto(dbCols.getInt("DATA_TYPE")));
-                    // Es autoincremental: true, no es autoincremental: false
-                    col.setAutoincremental("YES".equalsIgnoreCase(dbCols.getString("IS_AUTOINCREMENT")));
-                    cols.add(col);
+        
+        // Marcar columnas de contraseña automáticamente
+        if (tabla.getColumnas() != null) {
+            for (ColumnaConfig col : tabla.getColumnas()) {
+                if ("CONTRASENA".equalsIgnoreCase(col.getTipo())) {
+                    col.setContrasena(true);
+                    col.setVisible(false);
                 }
-                
-                // Almacenar foreign keys
-                while (dbFks.next()) {
-                    String columna = dbFks.getString("FKCOLUMN_NAME");
-                    String tablaRef = dbFks.getString("PKTABLE_NAME");
-                    String colRef = dbFks.getString("PKCOLUMN_NAME");
-                    // Buscar columna y almacenar en ella los datos de fk
-                    cols.stream()
-                    .filter(c -> c.getNombre().equals(columna))
-                    .findFirst()
-                    .ifPresent(c -> {
-                        c.setReferenciaTabla(tablaRef);
-                        c.setReferenciaCol(colRef);
-                    });
-                }
-                return cols;
             }
+        }
+    
+        try {
+            // Guardar objeto
+            metaDao.guardarConfiguracion(tabla);
+        } catch (Exception e) {
+            throw new BaseDatosException("Error al guardar configuración de '" + tabla.getNombreLogico() + "'.", e);
         }
     }
     
@@ -183,36 +83,111 @@ public class MetaService {
         return nombreAmigable.substring(0, 1).toUpperCase() + nombreAmigable.substring(1);
     }
     
-    public EntidadDinamica<Object> mapearConRelaciones(ResultSet rs, 
-        List<ColumnaConfig> columnasPrincipal, 
-        List<RelacionConfig> relaciones) throws SQLException {
-    
-    // 1. Mapeamos la entidad principal (como ya hacías)
-    EntidadDinamica<Object> entidad = mapear(rs, columnasPrincipal, "id");
-
-    // 2. Para cada relación incluida, creamos un objeto anidado
-    for (RelacionConfig rel : relaciones) {
-        if (rel.getCardinalidad().equals("N:1")) {
-            Map<String, Object> objetoRelacionado = new HashMap<>();
-            
-            // Obtenemos los metadatos de la tabla destino desde db4o 
-            // (necesitas un método para traer las columnas de la tabla destino)
-            List<ColumnaConfig> columnasDestino = buscarColumnas(rel.getTablaDestino());
-
-            for (ColumnaConfig col : columnasDestino) {
-                // MySQL devuelve las columnas del JOIN. 
-                // Si hay colisión de nombres (ej. 'id'), 
-                // JDBC suele dar prioridad o usar el orden.
-                // Lo ideal es que en el SQL hayas usado alias: t2.nombre AS rel_nombre
-                Object valor = rs.getObject(rel.getNombreRelacion() + "_" + col.getNombre());
-                objetoRelacionado.put(col.getNombre(), valor);
-            }
-            
-            // Guardamos el objeto anidado en la entidad principal
-            entidad.set(rel.getNombreRelacion(), objetoRelacionado);
+    /**
+     * Obtiene las relaciones entre una tabla principal y una o más tablas
+     * secundarias.
+     * Busca la configuración de la tabla principal (metadatos) y con ella su
+     * lista de relaciones.
+     * Procesa una lista de includes, separando cada elemento en un array, 
+     * 
+     * @param tablaPrincipal Tabla padre
+     * @param includes Cadena de texto con las tablas secundarias
+     * @return Lista de relaciones
+     */
+    public List<RelacionConfig> getRelaciones(String tablaPrincipal, String includes) {
+        if (includes == null || includes.trim().isEmpty()) {
+            return new ArrayList<>();
         }
-    }
-    return entidad;
-}
-}
 
+        // Dividir los includes
+        String[] tablasSolicitadas = includes.replace(" ", "").split(",");
+        List<String> listaSolicitadas = Arrays.asList(tablasSolicitadas);
+
+        List<RelacionConfig> relacionesFinales = new ArrayList<>();
+
+        // Obtener la configuración principal (Padres de la tabla)
+        TablaConfig config = metaDao.getConfiguracion(tablaPrincipal);
+        if (config != null && config.getRelaciones() != null) {
+            for (RelacionConfig rel : config.getRelaciones()) {
+                // Seleccionar relaciones con la tablas secundarias especificadas
+                if (listaSolicitadas.contains(rel.getTablaDestino())) {
+                    relacionesFinales.add(rel);
+                }
+            }
+        }
+
+        // Obtener las Hijas (Tablas que apuntan a la principal)
+        List<RelacionConfig> relacionesHijas = metaDao.getRelacionesHijas(tablaPrincipal);
+        if (relacionesHijas != null) {
+            for (RelacionConfig rel : relacionesHijas) {
+                // Seleccionar relaciones con la tabla principal
+                if (listaSolicitadas.contains(rel.getTablaOrigen())) {
+                    relacionesFinales.add(rel);
+                }
+            }
+        }
+
+        return relacionesFinales;
+    }
+    
+    /**
+     * Obtiene todas las relaciones internas que existen entre una lista de tablas.
+     * Ideal para operaciones transaccionales donde necesitamos inyectar FKs.
+     * 
+     * @param tablas Lista de tablas involucradas en la transacción
+     * @return Lista de relaciones pertinentes entre estas tablas
+     */
+    public List<RelacionConfig> getRelacionesEntreTablas(List<String> tablas) {
+        List<RelacionConfig> relacionesFinales = new ArrayList<>();
+
+        if (tablas == null || tablas.isEmpty()) {
+            return relacionesFinales;
+        }
+
+        // Revisar cada tabla de la lista
+        for (String tablaOrigen : tablas) {
+            TablaConfig config = metaDao.getConfiguracion(tablaOrigen);
+            
+            if (config != null && config.getRelaciones() != null) {
+                for (RelacionConfig rel : config.getRelaciones()) {
+                    // Si la tabla a la que apunta la FK TAMBIÉN está en nuestra lista de inserción
+                    if (tablas.contains(rel.getTablaDestino())) {
+                        relacionesFinales.add(rel);
+                    }
+                }
+            }
+        }
+
+        return relacionesFinales;
+    }
+    
+    public Map<String, Object> obtenerGuiaUsuario(String nombreTabla) {
+        TablaConfig tabla = metaDao.getConfiguracion(nombreTabla);
+        if (tabla == null) throw new RecursoNoEncontradoException("Tabla no configurada");
+
+        Map<String, Object> respuesta = new HashMap<>();
+        respuesta.put("tabla", tabla.getNombreLogico());
+        respuesta.put("nombre_amigable", tabla.getNombreAmigable());
+        respuesta.put("columnas", tabla.getColumnas());
+
+        // Estructura de relaciones bidireccional
+        Map<String, Object> relaciones = new HashMap<>();
+
+        // Padres: Lo que la tabla ya tiene dentro (sus FKs salientes)
+        relaciones.put("padres", tabla.getRelaciones()); 
+
+        // Hijas: Quién apunta a ella (usando el método que creamos antes)
+        relaciones.put("hijas", metaDao.getRelacionesHijas(nombreTabla));
+
+        respuesta.put("relaciones", relaciones);
+        return respuesta;
+    }
+    
+    public TablaConfig getConfiguracion(String nombreLogico) {
+        TablaConfig config = metaDao.getConfiguracion(nombreLogico);
+        if (config == null) {
+            throw new RecursoNoEncontradoException("Tabla no registrada: " + nombreLogico);
+        }
+        return config;
+    }
+}

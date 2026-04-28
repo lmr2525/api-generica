@@ -1,44 +1,78 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
- */
 package apigenerica.config;
 
+import apigenerica.controller.AuthController;
 import apigenerica.controller.BaseController;
+import apigenerica.controller.ConfigController;
+import apigenerica.controller.ModuloController;
+import apigenerica.dao.BaseDao;
+import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ApiRespuesta;
-import apigenerica.model.TablaConfig;
+import apigenerica.service.MetaService;
+import apigenerica.service.SqlService;
+import apigenerica.service.ValidadorService;
 import io.javalin.Javalin;
-import io.javalin.http.HandlerType;
 
 /**
+ * Punto de entrada de la API genérica del ERP.
+ * Inicializa conexiones, servicios, controladores y endpoints.
+ *
  * @author Grupo1
  */
 public class ApiGenerica {
 
-    /**
-     * @param args the command line arguments
-     */
     public static void main(String[] args) {
-        // Inicializar conexiones con la base de datos
+        // ── Inicializar conexión con MySQL ────────────────────────────
         ConexionMysql.inicializar();
-        ConexionDb4o.inicializar();
-        
-        // Lanzar servidor Jetty
-        Javalin app = Javalin.create().start(7000);
-        
-        // Configurar endpoints
-        app.post("/api/metadata", BaseController::crearTabla);
-        app.get("/api/metadata", BaseController::);
-        app.get("/api/{tabla}", BaseController::fetchTodo);
-        app.get("/api/{tabla}/{id}", BaseController::fetchPorId);
-        app.post("/api/{tabla}", BaseController::create);
-        app.put("/api/{tabla}/{id}", BaseController::update);
-        app.delete("/api/{tabla}/{id}", BaseController::delete);
-        
-        // Definir excepciones
+
+        // ── Instanciar servicios (inyección de dependencias manual) ───
+        MetaDao metaDao = new MetaDao();
+        ValidadorService validador = new ValidadorService(metaDao);
+        MetaService metaService = new MetaService(metaDao, validador);
+        SqlService sqlService = new SqlService(metaService, validador);
+        OrderService orderService = new OrderService(metaDao);
+
+        // ── Instanciar controladores ─────────────────────────────────
+        BaseDao baseDao = new BaseDao();
+        BaseController baseCtrl = new BaseController(sqlService, validador, metaService, baseDao, orderService);
+        AuthController authCtrl = new AuthController(baseDao);
+        ConfigController configCtrl = new ConfigController();
+        ModuloController moduloCtrl = new ModuloController();
+
+        // ── Crear servidor Javalin ───────────────────────────────────
+        Javalin app = Javalin.create(config -> {
+            // Habilitar CORS para que el frontend pueda consumir la API
+            config.enableCorsForAllOrigins();
+            // Logging de peticiones
+            config.enableDevLogging();
+        }).start(7000);
+
+        // ── Endpoints de metadatos (creación de tablas) ──────────────
+        app.post("/api/metadata", ctx -> baseCtrl.crearTabla(ctx));
+
+        // ── Endpoints de autenticación ───────────────────────────────
+        app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
+
+        // ── Endpoints de configuración ERP ───────────────────────────
+        app.get("/api/erp/config", ctx -> configCtrl.getConfig(ctx));
+        app.put("/api/erp/config", ctx -> configCtrl.updateConfig(ctx));
+
+        // ── Endpoints de módulos ─────────────────────────────────────
+        app.get("/api/erp/modulos", ctx -> moduloCtrl.getAll(ctx));
+        app.post("/api/erp/modulos", ctx -> moduloCtrl.create(ctx));
+        app.delete("/api/erp/modulos/{id}", ctx -> moduloCtrl.delete(ctx));
+
+        // ── Endpoints CRUD genéricos (cualquier tabla) ───────────────
+        // IMPORTANTE: Van al final para no interceptar las rutas específicas
+        app.get("/api/{tabla}", ctx -> baseCtrl.fetchTodo(ctx));
+        app.get("/api/{tabla}/{id}", ctx -> baseCtrl.fetchPorId(ctx));
+        app.post("/api/{tabla}", ctx -> baseCtrl.insert(ctx));
+        app.put("/api/{tabla}/{id}", ctx -> baseCtrl.update(ctx));
+        app.delete("/api/{tabla}/{id}", ctx -> baseCtrl.delete(ctx));
+
+        // ── Manejo global de excepciones ─────────────────────────────
         app.exception(ValidacionException.class, (e, ctx) ->
             ctx.status(400).json(ApiRespuesta.error(e.getMessage())));
 
@@ -48,49 +82,20 @@ public class ApiGenerica {
         app.exception(BaseDatosException.class, (e, ctx) ->
             ctx.status(500).json(ApiRespuesta.error(e.getMessage())));
 
-        app.exception(Exception.class, (e, ctx) ->
-            ctx.status(500).json(ApiRespuesta.error("Error interno del servidor.")));
+        app.exception(Exception.class, (e, ctx) -> {
+            System.err.println("Error no controlado: " + e.getMessage());
+            e.printStackTrace();
+            ctx.status(500).json(ApiRespuesta.error("Error interno del servidor."));
+        });
 
-//        // Añade header a las peticiones GET antes de ser procesadas por la API
-//        // private: cachear solo en navegador
-//        // no-cache: pregunta si los datos han cambiado antes de enviarlos
-//        app.before("/api/*", ctx -> {
-//            if (ctx.method().equals(HandlerType.GET)) {
-//                ctx.header("Cache-Control", "private, no-cache");
-//            }
-//        });
-//        
-//        // Etag para peticiones GET de metadatos
-//        // Si el Etag de tabla es el mismo que el de la petición, no se reenvían los datos
-//        app.get("/api/metadatos/{tabla}", ctx -> {
-//            String nombreTabla = ctx.pathParam("tabla");
-//            String etagCliente = ctx.header("If-None-Match");
-//
-//            String etagRam = metaService.getEtagDesdeRam(nombreTabla);
-//            if (etagRam != null && etagRam.equals(etagCliente)) {
-//                ctx.status(304);
-//                return;
-//            }
-//            
-//            TablaConfig tabla = metaService.getConfiguracion(nombreTabla);
-//            
-//            metaService.guardarEtagEnRam(nombreTabla, tabla.getEtag());
-//
-//            // Enviar datos y nuevo Etag
-//            ctx.header("ETag", tabla.getEtag());
-//            ctx.header("Cache-Control", "private, no-cache");
-//            ctx.json(tabla);
-//        });
-//
-//        // No cachear peticiones GET de las tablas
-//        app.get("/api/datos/{tabla}", ctx -> {
-//            ctx.header("Cache-Control", "no-store");
-//        });
-        
-        // Cerrar conexiones cuando se cierre la aplicación
+        // ── Shutdown hook ────────────────────────────────────────────
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             ConexionMysql.cerrar();
-            ConexionDb4o.cerrar();
+            System.out.println("[API] Conexiones cerradas correctamente.");
         }));
+
+        System.out.println("===========================================");
+        System.out.println("  API ERP Genérica arrancada en :7000");
+        System.out.println("===========================================");
     }
 }
