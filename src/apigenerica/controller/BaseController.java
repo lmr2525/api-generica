@@ -192,7 +192,7 @@ public class BaseController {
                 throw new BaseDatosException("La tabla '" + tabla + "' no tiene columnas configuradas.", null);
             }
             aplicarFiltroPrivacidadLista(resultados, columnas);
-            ctx.json(ApiRespuesta.ok(resultados));
+            ctx.status(HttpCode.OK).json(ApiRespuesta.ok(resultados));
         } catch (SQLException e) {
             throw new BaseDatosException("Error al consultar tabla '" + tabla + "'.", e);
         }
@@ -255,12 +255,17 @@ public class BaseController {
             }
 
             aplicarFiltroPrivacidadEntidad((EntidadDinamica) resultado, columnas);
-            ctx.json(ApiRespuesta.ok(resultado));
+            ctx.status(HttpCode.OK).json(ApiRespuesta.ok(resultado));
         } catch (SQLException e) {
             throw new BaseDatosException("Error al buscar el registro por ID.", e);
         }
     }
 
+    /**
+     * Inserta un registro en la base de datos
+     *
+     * @param ctx Contexto de la petición HTTP
+     */
     @SuppressWarnings("unchecked")
     public void insert(Context ctx) {
         // Obtener parámetros de la URL
@@ -273,7 +278,7 @@ public class BaseController {
             throw new ValidacionException("Cuerpo vacío.");
         }
         EntidadDinamica datos = new EntidadDinamica();
-        body.forEach(datos::set);
+        body.forEach(datos::set); // Mapear cada línea a EntidadDinamica
 
         // Buscar metadatos de la tabla de MySQL
         TablaConfig config = metaService.getConfiguracion(tabla);
@@ -292,6 +297,11 @@ public class BaseController {
         }
     }
 
+    /**
+     * Inserta registros en varias tablas a modo de transacción
+     *
+     * @param ctx Contexto de la petición HTTP
+     */
     @SuppressWarnings("unchecked")
     public void insertTransaccional(Context ctx) {
         Map<String, Object> body = ctx.bodyAsClass(Map.class);

@@ -4,24 +4,25 @@
  */
 package apigenerica;
 
+import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ColumnaConfig;
 import java.sql.Types;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.mindrot.jbcrypt.BCrypt;
 
 /**
- * @author Grupo1 
- * Convertir tipo de dato del formulario a SQL y viceversa;
+ * @author Grupo1 Convertir tipo de dato del formulario a SQL y viceversa;
  * convertir a tipo de dato Java
  */
 public class TipoDatoMapper {
 
     public static String toTexto(int tipo) {
         switch (tipo) {
-            case Types.INTEGER: 
+            case Types.INTEGER:
             case Types.BIGINT:
                 return "ENTERO";
-            case Types.DECIMAL: 
+            case Types.DECIMAL:
             case Types.DOUBLE:
             case Types.FLOAT:
                 return "DECIMAL";
@@ -31,10 +32,11 @@ public class TipoDatoMapper {
             case Types.LONGNVARCHAR:
             case Types.CLOB:
                 return "TEXTO_LARGO";
-            default: return "TEXTO_CORTO";
+            default:
+                return "TEXTO_CORTO";
         }
     }
-    
+
     public static String toSql(String tipo) {
         switch (tipo.toUpperCase()) {
             case "TEXTO_CORTO":
@@ -47,8 +49,10 @@ public class TipoDatoMapper {
                 return "INT";
             case "DECIMAL":
                 return "DECIMAL(10,2)";
-            case "FECHA":
+            case "FECHA_HORA":
                 return "DATETIME";
+            case "FECHA":
+                return "DATE";
             case "BINARIO":
                 return "TINYINT(1)";
             default:
@@ -69,7 +73,7 @@ public class TipoDatoMapper {
         // Validación datos obligatorios (Not Nullable)
         if (valorSinProc == null) {
             if (!conf.isNullable()) {
-                throw new Exception("El campo " + conf.getNombre() + " no puede ser nulo.");
+                throw new ValidacionException("El campo " + conf.getNombre() + " no puede ser nulo.");
             }
             return null; // No hay dato, salir del método
         }
@@ -84,7 +88,7 @@ public class TipoDatoMapper {
                     throw new Exception("El valor no es un entero válido");
                 }
             case "CONTRASENA":
-                return BCrypt.hashpw(valorStr, BCrypt.gensalt());
+                return BCrypt.hashpw(valorStr, BCrypt.gensalt()); // Hashear
             case "DECIMAL":
                 return Double.valueOf(valorStr);
             case "BINARIO":
@@ -97,6 +101,8 @@ public class TipoDatoMapper {
                 throw new Exception("Formato booleano inválido");
             case "FECHA":
                 return LocalDate.parse(valorStr); // Formato YYYY-MM-DD
+            case "FECHA_HORA":
+                return LocalDateTime.parse(valorStr);
             case "TEXTO_CORTO":
                 return valorStr;
             case "TEXTO_LARGO":

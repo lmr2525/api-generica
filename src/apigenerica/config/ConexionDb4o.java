@@ -4,6 +4,9 @@
  */
 package apigenerica.config;
 
+import com.db4o.Db4oEmbedded;
+import com.db4o.ObjectContainer;
+
 /**
  * @author Grupo1
  * Conexión con la base de datos db4o
