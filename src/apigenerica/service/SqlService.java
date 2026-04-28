@@ -6,13 +6,18 @@ package apigenerica.service;
 
 import apigenerica.model.ColumnaConfig;
 import apigenerica.TipoDatoMapper;
+import apigenerica.config.ConexionMysql;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 
 /**
- * @author Grupo1 Operaciones SQL genéricas (no CRUD)
+ * @author Grupo1 
+ * Operaciones SQL genéricas (no CRUD)
  */
 public class SqlService {
 
@@ -105,8 +110,8 @@ public class SqlService {
     /**
      * Construye una sentencia CREATE DATABASE
      *
-     * @param nombreDb
-     * @return
+     * @param nombreDb Nombre de la base de datos
+     * @return SQL listo para ejecutar
      */
     public String generarCreateDbSql(String nombreDb) {
         return "CREATE DATABASE IF NOT EXISTS `" + nombreDb
@@ -126,10 +131,10 @@ public class SqlService {
 
     /**
      * Ejecutar un script SQL
-     * 
+     *
      * @param db Base de datos en la que se ejecutará la sentencia
-     * @param sql Script SQL
-     * @throws SQLException 
+     * @param sql Sentencia a ejecutar
+     * @throws SQLException
      */
     public void ejecutarSql(String db, String sql) throws SQLException {
         try (Connection conn = ConexionMysql.getConexion(db); Statement stmt = conn.createStatement()) {

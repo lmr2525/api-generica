@@ -158,7 +158,7 @@ public class MetaDao {
                     col.setTipo(rs.getString("tipo"));
                     col.setNullable(rs.getBoolean("nullable"));
                     col.setContrasena(rs.getBoolean("es_contrasena"));
-                    col.setVisible(rs.getBoolean("visible"));
+                    col.setVisible(rs.getBoolean("es_visible"));
                     col.setAutoincremental(rs.getBoolean("autoincremental"));
                     col.setUnico(rs.getBoolean("unico"));
                     col.setValorDefecto(rs.getString("valor_defecto"));
@@ -169,6 +169,16 @@ public class MetaDao {
         return columnas;
     }
 
+    /**
+     * Obtener lista de relaciones de una tabla a partir de su ID
+     * 
+     * @param conn Conexión con MySQL
+     * @param tablaId ID de la tabla cuyas relaciones se desean buscar
+     * @param nombreTablaOrigen Nombre de la tabla, ya que en la tabla de 
+     * relaciones viene indicada por ID
+     * @return Datos de las relaciones que vienen desde la tabla especificada
+     * @throws SQLException 
+     */
     private List<RelacionConfig> getRelacionesPorTablaId(Connection conn, Long tablaId, String nombreTablaOrigen) throws SQLException {
         List<RelacionConfig> relaciones = new ArrayList<>();
         // JOIN para obtener el nombre de la tabla_origen
@@ -180,8 +190,8 @@ public class MetaDao {
                 while (rs.next()) {
                     RelacionConfig r = new RelacionConfig();
                     r.setNombreRelacion(rs.getString("nombre"));
-                    r.setFkColumna(rs.getString("fk_columna")); // Ya es el nombre "id_persona"
-                    r.setTablaDestino(rs.getString("tabla_destino")); // Ya es "personas"
+                    r.setFkColumna(rs.getString("fk_columna"));
+                    r.setTablaDestino(rs.getString("tabla_destino"));
                     r.setCardinalidad(rs.getString("cardinalidad"));
                     r.setTablaOrigen(nombreTablaOrigen);
                     relaciones.add(r);
@@ -195,9 +205,8 @@ public class MetaDao {
      * Busca qué tablas tienen una relación apuntando hacia la tabla
      * especificada.
      *
-     *
-     * @param nombreTablaDestino
-     * @return
+     * @param nombreTablaDestino Nombre de la tabla a la que apuntan
+     * @return Lista de relaciones hacia la tabla especificada
      */
     public List<RelacionConfig> getRelacionesHijas(String nombreTablaDestino) {
         List<RelacionConfig> relacionesHijas = new ArrayList<>();

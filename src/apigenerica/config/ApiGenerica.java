@@ -3,6 +3,7 @@ package apigenerica.config;
 import apigenerica.controller.AuthController;
 import apigenerica.controller.BaseController;
 import apigenerica.controller.ConfigController;
+import apigenerica.controller.MetaController;
 import apigenerica.controller.ModuloController;
 import apigenerica.dao.BaseDao;
 import apigenerica.dao.MetaDao;
@@ -40,7 +41,7 @@ public class ApiGenerica {
         AuthController authCtrl = new AuthController(baseDao);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
-        MetadataController metaCtrl = new MetadataController(metaService, validador);
+        MetaController metaCtrl = new MetaController(metaService, validador);
         
         // ── Crear servidor Javalin ───────────────────────────────────
         Javalin app = Javalin.create(config -> {
@@ -53,10 +54,8 @@ public class ApiGenerica {
         // ── Endpoints de metadatos ──────────────
         // Crear tablas
         app.post("/api/metadata", ctx -> baseCtrl.crearTabla(ctx));
-
-        // Obtener metadatos de todas las tablas
+        // Obtener metadatos (lista de nombres) de todas las tablas
         app.get("/api/metadata/tablas", ctx -> metaCtrl.listarTablas(ctx));
-
         // Obtener los metadatos de una tabla
         app.get("/api/metadata/tablas/{nombreTabla}", ctx -> metaCtrl.obtenerEstructuraTabla(ctx));
         
