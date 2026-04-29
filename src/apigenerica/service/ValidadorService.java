@@ -25,7 +25,7 @@ public class ValidadorService {
     public ValidadorService(MetaDao metaDao) {
         this.metaDao = metaDao;
     }
-    
+
     /**
      * Comprueba que el nombre no esté vacío
      *
@@ -35,15 +35,14 @@ public class ValidadorService {
         if (nombre == null || nombre.trim().isEmpty()) {
             throw new ValidacionException("El nombre es obligatorio.");
         }
-        
+
         if (!nombre.matches("^[a-zA-Z0-9_]+$")) {
             throw new ValidacionException("El nombre contiene caracteres no válidos.");
         }
     }
 
     /**
-     * Comprueba que una tabla no tenga columnas
-     * con nombres duplicados
+     * Comprueba que una tabla no tenga columnas con nombres duplicados
      *
      * @param cols Metadatos de las columnas
      */
@@ -56,12 +55,39 @@ public class ValidadorService {
         }
     }
 
-   /**
-    * Aplica reglas de validación sobre 
-    * los metadatos recibidos en el JSON
-    * 
-    * @param request Request enviada por el cliente
-    */
+    /**
+     * Valida que una columna no exista ya en la tabla
+     *
+     * @param tabla Tabla, para obtener la lista de columnas
+     * @param nombreColumna Nombre de la columna a validar
+     */
+    public void validarColumnaNoExiste(TablaConfig tabla, String nombreColumna) {
+        boolean existe = tabla.getColumnas().stream()
+                .anyMatch(c -> c.getNombre().equalsIgnoreCase(nombreColumna));
+        if (existe) {
+            throw new ValidacionException("La columna '" + nombreColumna + "' ya existe en la tabla '" + tabla.getNombreLogico() + "'.");
+        }
+    }
+    
+    /**
+     * Valida que una columna exista en la tabla
+     * 
+     * @param tabla Tabla, para obtener la lista de columnas
+     * @param nombreColumna Nombre de la columna a validar
+     */
+    public void validarColumnaExiste(TablaConfig tabla, String nombreColumna) {
+        boolean existe = tabla.getColumnas().stream()
+                .anyMatch(c -> c.getNombre().equalsIgnoreCase(nombreColumna));
+        if (!existe) {
+            throw new ValidacionException("La columna '" + nombreColumna + "' no existe en la tabla '" + tabla.getNombreLogico() + "'.");
+        }
+    }
+
+    /**
+     * Aplica reglas de validación sobre los metadatos recibidos en el JSON
+     *
+     * @param request Request enviada por el cliente
+     */
     public void validarMetadata(ApiRequest request) {
         if (request.getBaseDatos() == null || request.getBaseDatos().trim().isEmpty()) {
             throw new ValidacionException("La base de datos es obligatoria.");
@@ -80,12 +106,12 @@ public class ValidadorService {
             validarRelaciones(request.getRelaciones(), request.getTabla());
         }
     }
-    
+
     /**
-     * Comprueba si la relación entre una lista de
-     * tablas existe en los metadatos
-     * 
-     * @param tablas Lista de tablas 
+     * Comprueba si la relación entre una lista de tablas existe en los
+     * metadatos
+     *
+     * @param tablas Lista de tablas
      */
     public void validarRelacionesExisten(List<String> tablas) {
         for (String tabla : tablas) {
@@ -95,10 +121,11 @@ public class ValidadorService {
             }
         }
     }
-    
+
     /**
-     * Valida que las relaciones apunten a tablas y columnas existentes en la petición
-     * 
+     * Valida que las relaciones apunten a tablas y columnas existentes en la
+     * petición
+     *
      * @param relaciones Metadatos de las relaciones
      * @param tablas Lista de tablas cuyas relaciones se validarán
      */
@@ -106,18 +133,18 @@ public class ValidadorService {
         for (RelacionConfig rel : relaciones) {
             // Verificar que la tabla origen esté en el request
             TablaConfig origen = tablas.stream()
-                .filter(t -> t.getNombreLogico().equalsIgnoreCase(rel.getTablaOrigen()))
-                .findFirst()
-                .orElseThrow(() -> new ValidacionException("La relación '" + rel.getNombreRelacion() + 
-                        "' referencia a una tabla origen inexistente: " + rel.getTablaOrigen()));
+                    .filter(t -> t.getNombreLogico().equalsIgnoreCase(rel.getTablaOrigen()))
+                    .findFirst()
+                    .orElseThrow(() -> new ValidacionException("La relación '" + rel.getNombreRelacion()
+                    + "' referencia a una tabla origen inexistente: " + rel.getTablaOrigen()));
 
             // Verificar que la columna FK exista en la tabla origen
             boolean existeCol = origen.getColumnas().stream()
-                .anyMatch(c -> c.getNombre().equalsIgnoreCase(rel.getFkColumna()));
-            
+                    .anyMatch(c -> c.getNombre().equalsIgnoreCase(rel.getFkColumna()));
+
             if (!existeCol) {
-                throw new ValidacionException("La columna FK '" + rel.getFkColumna() + 
-                        "' no existe en la tabla '" + rel.getTablaOrigen() + "'");
+                throw new ValidacionException("La columna FK '" + rel.getFkColumna()
+                        + "' no existe en la tabla '" + rel.getTablaOrigen() + "'");
             }
         }
     }

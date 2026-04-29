@@ -21,11 +21,9 @@ import java.util.List;
  */
 public class SqlService {
 
-    private MetaService metaService;
     private final ValidadorService validador;
 
-    public SqlService(MetaService metaService, ValidadorService validador) {
-        this.metaService = metaService;
+    public SqlService(ValidadorService validador) {
         this.validador = validador;
     }
 
@@ -43,41 +41,18 @@ public class SqlService {
             validador.validarNombre(nombreTabla);
             validador.validarColumnasUnicas(campos);
 
-            StringBuilder sql = new StringBuilder("CREATE TABLE " + nombreTabla + " (");
+            StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS `" + nombreTabla + "` (");
             sql.append("`id` BIGINT AUTO_INCREMENT PRIMARY KEY, ");
-            // Recorrer lista de campos
-            for (int i = 0; i < campos.size(); i++) {
-                ColumnaConfig c = campos.get(i);
 
-                // Si el usuario envió una columna llamada id, se ignora
-                if (c.getNombre().equalsIgnoreCase("id")) {
-                    continue;
+            // Crear columnas
+            if (campos != null) {
+                for (int i = 0; i < campos.size(); i++) {
+                    String sqlCol = construirDefinicionColumna(campos.get(i));
+                    if (!sqlCol.isEmpty()) {
+                        sql.append(sqlCol);
+                        sql.append(", "); // Separar de la siguiente columna
+                    }
                 }
-
-                // `Nombre de la tabla` + " " + tipo de dato
-                sql.append("`").append(c.getNombre()).append("`").append(" ")
-                        .append(TipoDatoMapper.toSql(c.getTipo()));
-
-                // Si no puede ser nulo
-                if (!c.isNullable()) {
-                    sql.append(" NOT NULL");
-                }
-                // Si se especificó un valor por defecto y no es autoincremental
-                if (c.getValorDefecto() != null && !c.isAutoincremental()) {
-                    sql.append(" DEFAULT '").append(c.getValorDefecto()).append("'");
-                }
-                // Si es autoincremental (y tipo INT)
-                if (c.isAutoincremental() && TipoDatoMapper.toSql(c.getTipo()).contains("INT")) {
-                    sql.append(" AUTO_INCREMENT");
-                }
-
-                // Si es único
-                if (c.isUnico()) {
-                    sql.append(" UNIQUE");
-                }
-
-                // Separar de la siguiente columna
-                sql.append(", ");
             }
 
             // Añadir Foreign Keys
@@ -94,11 +69,10 @@ public class SqlService {
                         sql.append(", ");
                     }
                 }
-            } else {
-                // Si no hay relaciones, quitar la última coma y espacio de las columnas
-                if (sql.toString().endsWith(", ")) {
-                    sql.setLength(sql.length() - 2);
-                }
+            }
+            // Quitar la última coma y espacio de las columnas
+            if (sql.toString().endsWith(", ")) {
+                sql.setLength(sql.length() - 2);
             }
             sql.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
             return sql.toString();
@@ -116,6 +90,71 @@ public class SqlService {
     public String generarCreateDbSql(String nombreDb) {
         return "CREATE DATABASE IF NOT EXISTS `" + nombreDb
                 + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;";
+    }
+
+    /**
+     * Construye una sentencia ALTER TABLE ADD COLUMN
+     *
+     * @param tabla Nombre de la tabla que se modificará
+     * @param col Metadatos de la columna a añadir
+     * @return SQL listo para ejecutar
+     */
+    public String generarAddColumnSql(String tabla, ColumnaConfig col) {
+        validador.validarNombre(tabla);
+        validador.validarNombre(col.getNombre());
+        
+        String sqlCol = construirDefinicionColumna(col);
+        if (sqlCol.isEmpty()) {
+            throw new IllegalArgumentException("Definición de columna no válida.");
+        }
+        return String.format("ALTER TABLE `%s` ADD COLUMN %s", tabla, sqlCol);
+    }
+
+    /**
+     * Construye una sentencia ALTER TABLE DROP COLUMN
+     *
+     * @param tabla Nombre de la tabla que se modificará
+     * @param nombreColumna Nombre de la columna que se eliminará
+     * @return SQL listo para ejecutar
+     */
+    public String generarDropColumnSql(String tabla, String nombreColumna) {
+        validador.validarNombre(tabla);
+        validador.validarNombre(nombreColumna);
+        return String.format("ALTER TABLE `%s` DROP COLUMN `%s`", tabla, nombreColumna);
+    }
+
+    /**
+     * Construye una sentencia ALTER TABLE MODIFY COLUMN
+     *
+     * @param tabla Nombre de la tabla que se modificará
+     * @param col Nombre de la columna que se modificará
+     * @return SQL listo para ejecutar
+     */
+    public String generarModifyColumnSql(String tabla, ColumnaConfig col) {
+        validador.validarNombre(tabla);
+        validador.validarNombre(col.getNombre());
+        
+        String definicion = construirDefinicionColumna(col);
+        if (definicion.isEmpty()) {
+            throw new IllegalArgumentException("Definición de columna no válida.");
+        }
+        return String.format("ALTER TABLE `%s` MODIFY COLUMN %s", tabla, definicion);
+    }
+ 
+    /**
+     * Construye una sentencia ALTER TABLE RENAME COLUMN
+     * 
+     * @param tabla Nombre de la tabla que se modificará
+     * @param nombreColumna Nombre actual de la columna
+     * @param nuevoNombre Nombre nuevo de la columna
+     * @return 
+     */
+    public String generarRenameColumnSql(String tabla, String nombreColumna, String nuevoNombre) {
+        validador.validarNombre(tabla);
+        validador.validarNombre(nombreColumna);
+        validador.validarNombre(nuevoNombre);
+        
+        return String.format("ALTER TABLE `%s` RENAME COLUMN `%s` TO `%s`", tabla, nombreColumna, nuevoNombre);
     }
 
     /**
@@ -143,5 +182,46 @@ public class SqlService {
             System.err.println("Error ejecutando: " + sql);
             throw e;
         }
+    }
+
+    /**
+     * Construye la definición SQL completa de una columna (tipo, NOT NULL,
+     * DEFAULT, etc.)
+     *
+     * @param c Metadatos de la columna
+     * @return String SQL construido
+     */
+    private String construirDefinicionColumna(ColumnaConfig c) {
+        StringBuilder sql = new StringBuilder();
+
+        // Si el usuario envió una columna llamada id, se ignora
+        if (c.getNombre().equalsIgnoreCase("id")) {
+            return "";
+        }
+
+        // Nombre y tipo
+        sql.append("`").append(c.getNombre()).append("` ").append(TipoDatoMapper.toSql(c.getTipo()));
+
+        // NOT NULL
+        if (!c.isNullable()) {
+            sql.append(" NOT NULL");
+        }
+
+        // DEFAULT
+        if (c.getValorDefecto() != null && !c.isAutoincremental()) {
+            sql.append(" DEFAULT '").append(c.getValorDefecto()).append("'");
+        }
+
+        // AUTO_INCREMENT
+        if (c.isAutoincremental() && TipoDatoMapper.toSql(c.getTipo()).contains("INT")) {
+            sql.append(" AUTO_INCREMENT");
+        }
+
+        // UNIQUE
+        if (c.isUnico()) {
+            sql.append(" UNIQUE");
+        }
+
+        return sql.toString();
     }
 }

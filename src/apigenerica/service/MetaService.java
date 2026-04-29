@@ -7,9 +7,11 @@ package apigenerica.service;
 import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
+import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -24,10 +26,12 @@ public class MetaService {
 
     private final MetaDao metaDao;
     private final ValidadorService validador;
+    private final SqlService sqlService;
 
-    public MetaService(MetaDao metaDao, ValidadorService validador) {
+    public MetaService(MetaDao metaDao, ValidadorService validador, SqlService sqlService) {
         this.metaDao = metaDao;
         this.validador = validador;
+        this.sqlService = sqlService;
     }
 
     /**
@@ -160,30 +164,6 @@ public class MetaService {
         return relacionesFinales;
     }
 
-    public Map<String, Object> obtenerGuiaUsuario(String nombreTabla) {
-        TablaConfig tabla = metaDao.getConfiguracion(nombreTabla);
-        if (tabla == null) {
-            throw new RecursoNoEncontradoException("Tabla no configurada");
-        }
-
-        Map<String, Object> respuesta = new HashMap<>();
-        respuesta.put("tabla", tabla.getNombreLogico());
-        respuesta.put("nombre_amigable", tabla.getNombreAmigable());
-        respuesta.put("columnas", tabla.getColumnas());
-
-        // Estructura de relaciones bidireccional
-        Map<String, Object> relaciones = new HashMap<>();
-
-        // Padres: Lo que la tabla ya tiene dentro (sus FKs salientes)
-        relaciones.put("padres", tabla.getRelaciones());
-
-        // Hijas: Quién apunta a ella (usando el método que creamos antes)
-        relaciones.put("hijas", metaDao.getRelacionesHijas(nombreTabla));
-
-        respuesta.put("relaciones", relaciones);
-        return respuesta;
-    }
-
     public TablaConfig getConfiguracion(String nombreLogico) {
         TablaConfig config = metaDao.getConfiguracion(nombreLogico);
         if (config == null) {
@@ -212,4 +192,72 @@ public class MetaService {
     public TablaConfig obtenerDetalleTabla(String nombreLogico) {
         return metaDao.getConfiguracion(nombreLogico);
     }
+    
+    /**
+     * Agrega una columna a una tabla
+     * 
+     * @param nombreTabla Nombre de la tabla
+     * @param nuevaCol Metadatos de la nueva columna
+     * @throws SQLException 
+     */
+    public void agregarColumna(String nombreTabla, ColumnaConfig nuevaCol) throws SQLException {
+        TablaConfig config = metaDao.getConfiguracion(nombreTabla);
+        validador.validarColumnaNoExiste(config, nuevaCol.getNombre());
+
+        // Crear columna
+        String sql = sqlService.generarAddColumnSql(nombreTabla, nuevaCol);
+        sqlService.ejecutarSql(config.getNombreDb(), sql);
+        
+        // Actualizar metadatos
+        if ("CONTRASENA".equalsIgnoreCase(nuevaCol.getTipo())) {
+            nuevaCol.setContrasena(true);
+            nuevaCol.setVisible(false);
+        }
+        config.getColumnas().add(nuevaCol);
+        metaDao.guardarConfiguracion(config);
+    }
+    
+    /**
+     * Modifica una columna de la tabla
+     * 
+     * @param nombreTabla Nombre de la tabla
+     * @param colModificada Nombre de la columna
+     */
+    public void modificarColumna(String nombreTabla, ColumnaConfig colModificada) {
+        TablaConfig config = metaDao.getConfiguracion(nombreTabla);
+        validador.validarColumnaExiste(config, colModificada.getNombre());
+
+        // Modificar columna
+        String sql = sqlService.generarModifyColumnSql(nombreTabla, colModificada);
+        try {
+            sqlService.ejecutarSql(config.getNombreDb(), sql);
+        } catch (SQLException e) {
+            // Manejo específico de errores de MySQL al hacer ALTER TABLE
+            procesarErrorMysql(e); 
+        }
+
+        // Actualizar metadatos si no hubo error
+        config.getColumnas().replaceAll(col ->
+            col.getNombre().equalsIgnoreCase(colModificada.getNombre()) ? colModificada : col
+        );
+        metaDao.guardarConfiguracion(config);
+    }
+
+private void procesarErrorMysql(SQLException e) {
+    int errorCode = e.getErrorCode();
+    
+    switch (errorCode) {
+        case 1138: // Invalid use of NULL value (Al poner NOT NULL cuando hay nulos)
+            throw new ValidacionException("No puedes hacer la columna obligatoria (NOT NULL) porque ya existen registros con valores vacíos.");
+        case 1265: // Data truncated (Ej: pasar de VARCHAR a INT y hay letras)
+        case 1292: // Incorrect value
+        case 1366: // Incorrect integer/string value
+            throw new ValidacionException("No se puede cambiar el tipo de dato. Existen registros incompatibles con el nuevo formato.");
+        case 1060: // Duplicate column name (Por si se escapó a la validación preventiva)
+            throw new ValidacionException("El nombre de la columna ya está en uso.");
+        default:
+            // Error genérico para cosas que no contemplamos
+            throw new BaseDatosException("Error en la base de datos al modificar la tabla: " + e.getMessage(), e);
+    }
+}
 }
