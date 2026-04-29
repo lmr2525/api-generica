@@ -107,7 +107,7 @@ public class SqlService {
         if (sqlCol.isEmpty()) {
             throw new IllegalArgumentException("Definición de columna no válida.");
         }
-        return String.format("ALTER TABLE `%s` ADD COLUMN %s", tabla, sqlCol);
+        return String.format("ALTER TABLE `%s` ADD COLUMN `%s`", tabla, sqlCol);
     }
 
     /**
@@ -138,7 +138,7 @@ public class SqlService {
         if (definicion.isEmpty()) {
             throw new IllegalArgumentException("Definición de columna no válida.");
         }
-        return String.format("ALTER TABLE `%s` MODIFY COLUMN %s", tabla, definicion);
+        return String.format("ALTER TABLE `%s` MODIFY COLUMN `%s`", tabla, definicion);
     }
  
     /**
@@ -179,7 +179,7 @@ public class SqlService {
         try (Connection conn = ConexionMysql.getConexion(db); Statement stmt = conn.createStatement()) {
             stmt.execute(sql);
         } catch (SQLException e) {
-            System.err.println("Error ejecutando: " + sql);
+            System.err.println("Error ejecutando '" + sql + "'");
             throw e;
         }
     }
@@ -188,37 +188,37 @@ public class SqlService {
      * Construye la definición SQL completa de una columna (tipo, NOT NULL,
      * DEFAULT, etc.)
      *
-     * @param c Metadatos de la columna
+     * @param columna Metadatos de la columna
      * @return String SQL construido
      */
-    private String construirDefinicionColumna(ColumnaConfig c) {
+    private String construirDefinicionColumna(ColumnaConfig columna) {
         StringBuilder sql = new StringBuilder();
 
         // Si el usuario envió una columna llamada id, se ignora
-        if (c.getNombre().equalsIgnoreCase("id")) {
+        if (columna.getNombre().equalsIgnoreCase("id")) {
             return "";
         }
 
         // Nombre y tipo
-        sql.append("`").append(c.getNombre()).append("` ").append(TipoDatoMapper.toSql(c.getTipo()));
+        sql.append("`").append(columna.getNombre()).append("` ").append(TipoDatoMapper.toSql(columna.getTipo()));
 
         // NOT NULL
-        if (!c.isNullable()) {
+        if (!columna.isNullable()) {
             sql.append(" NOT NULL");
         }
 
         // DEFAULT
-        if (c.getValorDefecto() != null && !c.isAutoincremental()) {
-            sql.append(" DEFAULT '").append(c.getValorDefecto()).append("'");
+        if (columna.getValorDefecto() != null && !columna.isAutoincremental()) {
+            sql.append(" DEFAULT '").append(columna.getValorDefecto()).append("'");
         }
 
         // AUTO_INCREMENT
-        if (c.isAutoincremental() && TipoDatoMapper.toSql(c.getTipo()).contains("INT")) {
+        if (columna.isAutoincremental() && TipoDatoMapper.toSql(columna.getTipo()).contains("INT")) {
             sql.append(" AUTO_INCREMENT");
         }
 
         // UNIQUE
-        if (c.isUnico()) {
+        if (columna.isUnico()) {
             sql.append(" UNIQUE");
         }
 

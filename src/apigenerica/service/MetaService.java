@@ -14,9 +14,7 @@ import apigenerica.model.TablaConfig;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author Grupo1 
@@ -247,16 +245,16 @@ private void procesarErrorMysql(SQLException e) {
     int errorCode = e.getErrorCode();
     
     switch (errorCode) {
-        case 1138: // Invalid use of NULL value (Al poner NOT NULL cuando hay nulos)
-            throw new ValidacionException("No puedes hacer la columna obligatoria (NOT NULL) porque ya existen registros con valores vacíos.");
-        case 1265: // Data truncated (Ej: pasar de VARCHAR a INT y hay letras)
-        case 1292: // Incorrect value
-        case 1366: // Incorrect integer/string value
+        case 1138: // Cambiar columna a NOT NULL si ya hay nulos
+            throw new ValidacionException("No se puede hacer la columna obligatoria (NOT NULL) porque ya existen registros con valores vacíos.");
+        case 1265: // Datos truncados
+        case 1292: // Valor incorrecto
+        case 1366: // Valor incorrecto de integer/char
             throw new ValidacionException("No se puede cambiar el tipo de dato. Existen registros incompatibles con el nuevo formato.");
-        case 1060: // Duplicate column name (Por si se escapó a la validación preventiva)
+        case 1060: // Nombre de columna repetido
             throw new ValidacionException("El nombre de la columna ya está en uso.");
         default:
-            // Error genérico para cosas que no contemplamos
+            // Error genérico
             throw new BaseDatosException("Error en la base de datos al modificar la tabla: " + e.getMessage(), e);
     }
 }

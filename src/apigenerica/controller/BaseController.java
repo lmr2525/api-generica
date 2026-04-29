@@ -6,7 +6,6 @@ import apigenerica.dao.BaseDao;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
-import apigenerica.model.ApiRequest;
 import apigenerica.model.ApiRespuesta;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.EntidadDinamica;
@@ -14,7 +13,6 @@ import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
 import apigenerica.service.MetaService;
 import apigenerica.service.OrderService;
-import apigenerica.service.SqlService;
 import apigenerica.service.ValidadorService;
 import io.javalin.http.Context;
 import io.javalin.http.HttpCode;
@@ -22,12 +20,10 @@ import io.javalin.http.HttpCode;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Controlador genérico CRUD para cualquier tabla de la base de datos. Usa los
@@ -37,96 +33,17 @@ import java.util.stream.Collectors;
  */
 public class BaseController {
 
-    private final SqlService sqlService;
     private final ValidadorService validador;
     private final MetaService metaService;
     private final BaseDao baseDao;
     private final OrderService orderService;
 
-    public BaseController(SqlService sqlService, ValidadorService validador,
-            MetaService metaService, BaseDao baseDao, OrderService orderService) {
-        this.sqlService = sqlService;
+    public BaseController(ValidadorService validador, MetaService metaService,
+            BaseDao baseDao, OrderService orderService) {
         this.validador = validador;
         this.metaService = metaService;
         this.baseDao = baseDao;
         this.orderService = orderService;
-    }
-
-    /**
-     * Crea una tabla en MySQL
-     *
-     * @param ctx Contexto de la petición HTTP
-     */
-    public void crearTabla(Context ctx) {
-        try {
-            // Convertir JSON a objeto ApiRequest
-            ApiRequest request = ctx.bodyAsClass(ApiRequest.class);
-            // Validaciones
-            validador.validarMetadata(request);
-
-            // Ordenar tablas para evitar errores por foreign keys
-            List<String> nombresTablas = request.getTabla().stream()
-                    .map(TablaConfig::getNombreLogico)
-                    .collect(Collectors.toList());
-            List<String> orden = orderService.ordenarTablas(nombresTablas);
-            request.getTabla().sort(Comparator.comparingInt(t -> orden.indexOf(t.getNombreLogico())));
-
-            // Asegurar que la base de datos existe. Crearla si no
-            crearBaseDatos(request);
-
-            int tablasCreadas = procesarFormulario(request);
-            ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok("Se han creado " + tablasCreadas + " tablas."));
-        } catch (SQLException e) {
-            throw new BaseDatosException("Error al crear tablas.", e);
-        }
-    }
-
-    /**
-     * Crea la base de datos si no existe.
-     *
-     * @param request Datos de la petición
-     * @throws SQLException
-     */
-    private void crearBaseDatos(ApiRequest request) throws SQLException {
-        // Validaciones
-        validador.validarNombre(request.getBaseDatos());
-        // Crear base de datos
-        String sql = sqlService.generarCreateDbSql(request.getBaseDatos());
-        sqlService.ejecutarSql(null, sql);
-    }
-
-    /*
-    * Valida una lista de tablas recibidas desde el formulario,
-    * genera el SQL de creación y persiste los metadatos en db4o.
-    *
-    * @param request Datos de la petición
-    * @return Número de tablas creadas
-     */
-    private int procesarFormulario(ApiRequest request) throws SQLException {
-        int tablasCreadas = 0;
-        for (TablaConfig t : request.getTabla()) {
-            // Limpieza y validación
-            validador.validarNombre(t.getNombreLogico());
-            t.setNombreDb(request.getBaseDatos());
-
-            // Buscar relaciones en las que la tabla actual es la origen (tiene la fk)
-            List<RelacionConfig> relacionesTabla = new ArrayList<>();
-            if (request.getRelaciones() != null) {
-                relacionesTabla = request.getRelaciones().stream()
-                        .filter(r -> r.getTablaOrigen().equalsIgnoreCase(t.getNombreLogico()))
-                        .collect(Collectors.toList());
-            }
-            t.setRelaciones(relacionesTabla);
-
-            // Crear tabla
-            String sql = sqlService.generarCreateSql(t, relacionesTabla);
-            sqlService.ejecutarSql(request.getBaseDatos(), sql);
-
-            // Persistencia de metadatos
-            metaService.guardarConfiguracion(t);
-            tablasCreadas++;
-        }
-        return tablasCreadas;
     }
 
     /**
@@ -361,6 +278,11 @@ public class BaseController {
         }
     }
 
+    /**
+     * Actualiza los datos de una tabla
+     *
+     * @param ctx Contexto de la petición HTTP
+     */
     @SuppressWarnings("unchecked")
     public void update(Context ctx) {
         // Obtener parámetros de la URL
@@ -417,7 +339,7 @@ public class BaseController {
         String baseDatos = null;
 
         for (String tabla : orden) {
-            Map<String, Object> mapaDatos = (Map<String, Object>) datosRaw.get(tabla); // ✅ declarado
+            Map<String, Object> mapaDatos = (Map<String, Object>) datosRaw.get(tabla);
             if (mapaDatos == null) {
                 continue;
             }
@@ -429,7 +351,7 @@ public class BaseController {
             TablaConfig config = metaService.getConfiguracion(tabla);
             if (config != null) {
                 if (baseDatos == null) {
-                    baseDatos = config.getNombreDb(); // ✅ solo la primera vez
+                    baseDatos = config.getNombreDb();
                 }
                 if (config.getColumnas() != null) {
                     entidad = convertirTipos(entidad, config.getColumnas());
@@ -460,6 +382,11 @@ public class BaseController {
         }
     }
 
+    /**
+     * Elimina los datos de una tabla
+     * 
+     * @param ctx Contexto de la petición HTTP
+     */
     public void delete(Context ctx) {
         // Obtener parámetros de la URL
         String tabla = ctx.pathParam("tabla");
@@ -554,20 +481,27 @@ public class BaseController {
     }
 
     /**
-     * Elimina columnas que no deben ser visibles al usuario y contraseñas
+     * Aplica el filtro de privacidad a una entidad. Estos son los únicos datos
+     * que se devuelven al cliente
+     * 
+     * @param entidad Entidad/Registro de una tabla
+     * @param configs Metadatos de sus columnas para saber qué datos se deben ocultar
      */
     private void aplicarFiltroPrivacidadEntidad(EntidadDinamica entidad, List<ColumnaConfig> configs) {
         if (entidad == null || configs == null) {
             return;
         }
-
+        // Ocultar datos no visibles y contraseñas
         configs.stream()
                 .filter(c -> c.isContrasena() || !c.isVisible())
                 .forEach(c -> entidad.getTodo().remove(c.getNombre()));
     }
 
     /**
-     * Filtra una lista de entidades
+     * Aplica el filro de privacidad a una lista de entidades
+     * 
+     * @param entidades Lista de entidades
+     * @param configs Metadatos de sus columnas para saber qué datos se deben ocultar
      */
     private void aplicarFiltroPrivacidadLista(List<EntidadDinamica> entidades, List<ColumnaConfig> configs) {
         if (entidades == null) {

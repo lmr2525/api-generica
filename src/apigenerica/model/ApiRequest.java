@@ -14,8 +14,7 @@ import java.util.List;
 public class ApiRequest {
 
     private String baseDatos; // Nombre lógico de la base de datos
-    private List<TablaConfig> tabla; // Datos del formulario
-    private List<RelacionConfig> relaciones; // Datos de las claves foráneas
+    private List<TablaConfig> tabla; // Datos de la tabla
 
     // Getters y setters
     public String getBaseDatos() {
@@ -32,13 +31,5 @@ public class ApiRequest {
 
     public void setTabla(List<TablaConfig> tabla) {
         this.tabla = tabla;
-    }
-
-    public List<RelacionConfig> getRelaciones() {
-        return relaciones;
-    }
-
-    public void setRelaciones(List<RelacionConfig> relaciones) {
-        this.relaciones = relaciones;
     }
 }

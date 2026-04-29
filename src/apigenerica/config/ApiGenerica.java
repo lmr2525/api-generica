@@ -32,17 +32,17 @@ public class ApiGenerica {
         // ── Instanciar servicios (inyección de dependencias manual) ───
         MetaDao metaDao = new MetaDao();
         ValidadorService validador = new ValidadorService(metaDao);
-        MetaService metaService = new MetaService(metaDao, validador);
-        SqlService sqlService = new SqlService(metaService, validador);
+        SqlService sqlService = new SqlService(validador);
+        MetaService metaService = new MetaService(metaDao, validador, sqlService);
         OrderService orderService = new OrderService(metaDao);
 
         // ── Instanciar controladores ─────────────────────────────────
         BaseDao baseDao = new BaseDao();
-        BaseController baseCtrl = new BaseController(sqlService, validador, metaService, baseDao, orderService);
+        BaseController baseCtrl = new BaseController(validador, metaService, baseDao, orderService);
         AuthController authCtrl = new AuthController(baseDao);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
-        MetaController metaCtrl = new MetaController(metaService, validador);
+        MetaController metaCtrl = new MetaController(metaService, validador, orderService, sqlService);
         
         // ── Crear servidor Javalin ───────────────────────────────────
         Javalin app = Javalin.create(config -> {
@@ -54,11 +54,17 @@ public class ApiGenerica {
 
         // ── Endpoints de metadatos ──────────────
         // Crear tablas
-        app.post("/api/metadata", ctx -> baseCtrl.crearTabla(ctx));
+        app.post("/api/metadata", ctx -> metaCtrl.crearTabla(ctx));
         // Obtener metadatos (lista de nombres) de todas las tablas
         app.get("/api/metadata", ctx -> metaCtrl.listarTablas(ctx));
         // Obtener los metadatos de una tabla
-        app.get("/api/metadata/tablas/{nombreTabla}", ctx -> metaCtrl.obtenerEstructuraTabla(ctx));
+        app.get("/api/metadata/tablas/{tabla}", ctx -> metaCtrl.obtenerEstructuraTabla(ctx));
+        // Añadir columnas a una tabla
+        app.post("/api/metadata/tablas/{tabla}/columnas", ctx -> metaCtrl.agregarColumna(ctx));
+        // Modificar las columnas de una tabla
+        app.put("/api/metadata/tablas/{tabla}/columnas", ctx -> metaCtrl.modificarEstructuraTabla(ctx));
+        // Eliminar columnas de una tabla
+        app.delete("/api/metadata/tablas/{tabla}/columnas", ctx -> metaCtrl.eliminarColumna(ctx));
         
         // ── Endpoints de autenticación ───────────────────────────────
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
