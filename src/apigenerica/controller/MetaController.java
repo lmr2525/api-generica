@@ -22,6 +22,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -204,6 +205,34 @@ public class MetaController {
             ctx.status(200).json(ApiRespuesta.ok("Columna modificada correctamente."));
         } catch (ValidacionException e) {
             ctx.status(400).json(ApiRespuesta.error(e.getMessage()));
+        }
+    }
+    
+    /**
+     * Renombra una columna existente
+     *
+     * @param ctx
+     */
+    public void renombrarColumna(Context ctx) {
+        try {
+            String nombreTabla = ctx.pathParam("tabla");
+            String nombreViejo = ctx.pathParam("columna");
+
+            // Obtener nuevo nombre del body
+            Map<String, String> body = ctx.bodyAsClass(Map.class);
+            String nombreNuevo = body.get("nuevoNombre");
+
+            if (nombreNuevo == null || nombreNuevo.trim().isEmpty()) {
+                throw new ValidacionException("Debe proporcionar el campo 'nuevoNombre' en el JSON.");
+            }
+
+            // Renombrar la columna
+            metaService.renombrarColumna(nombreTabla, nombreViejo, nombreNuevo);
+            ctx.status(200).json(ApiRespuesta.ok("Columna renombrada de '" + nombreViejo + "' a '" + nombreNuevo + "' correctamente."));
+        } catch (ValidacionException e) {
+            ctx.status(400).json(ApiRespuesta.error(e.getMessage()));
+        } catch (SQLException | BaseDatosException e) {
+            ctx.status(500).json(ApiRespuesta.error("Error en la base de datos al renombrar la columna: " + e.getMessage()));
         }
     }
 }

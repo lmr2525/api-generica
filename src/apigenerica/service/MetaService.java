@@ -232,6 +232,14 @@ public class MetaService {
         metaDao.guardarConfiguracion(config);
     }
     
+    /**
+     * Renombra una columna
+     * 
+     * @param nombreTabla
+     * @param nombreViejo
+     * @param nombreNuevo
+     * @throws SQLException 
+     */
     public void renombrarColumna(String nombreTabla, String nombreViejo, String nombreNuevo) throws SQLException {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
 
@@ -267,19 +275,19 @@ public class MetaService {
         String sql = sqlService.generarModifyColumnSql(nombreTabla, colModificada);
         try {
             sqlService.ejecutarSql(config.getNombreDb(), sql);
+            
+            // Persistir metadatos
+            for (int i = 0; i < config.getColumnas().size(); i++) {
+                if (config.getColumnas().get(i).getNombre().equalsIgnoreCase(colModificada.getNombre())) {
+                    config.getColumnas().set(i, colModificada);
+                    break;
+                }
+            }
+            metaDao.guardarConfiguracion(config);
         } catch (SQLException e) {
             // Manejo específico de errores de MySQL al hacer ALTER TABLE
             procesarErrorMysql(e); 
         }
-
-        // Actualizar metadatos si no hubo error
-        for (int i = 0; i < config.getColumnas().size(); i++) {
-            if (config.getColumnas().get(i).getNombre().equalsIgnoreCase(colModificada.getNombre())) {
-                config.getColumnas().set(i, colModificada);
-                break;
-            }
-        }
-        metaDao.guardarConfiguracion(config);
     }
 
     private void procesarErrorMysql(SQLException e) {
@@ -294,6 +302,8 @@ public class MetaService {
                 throw new ValidacionException("No se puede cambiar el tipo de dato. Existen registros incompatibles con el nuevo formato.");
             case 1060: // Nombre de columna repetido
                 throw new ValidacionException("El nombre de la columna ya está en uso.");
+            case 1025: // Error de Foreign Key al intentar cambiar tipo de dato
+                throw new ValidacionException("No se puede modificar la columna porque es parte de una relación (Foreign Key). Elimine la relación primero.");
             default:
                 // Error genérico
                 throw new BaseDatosException("Error en la base de datos al modificar la tabla: " + e.getMessage(), e);
