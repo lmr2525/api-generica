@@ -55,6 +55,8 @@ public class ApiGenerica {
         // ── Endpoints de metadatos ──────────────
         // Crear tablas
         app.post("/api/metadata/db", ctx -> metaCtrl.crearBaseDatos(ctx));
+        // Obtener lista de bases de datos
+        app.get("/api/metadata/db", ctx -> metaCtrl.listarBasesDatos(ctx));
         // Crear tablas
         app.post("/api/metadata/tablas", ctx -> metaCtrl.crearTabla(ctx));
         // Obtener metadatos (lista de nombres) de todas las tablas

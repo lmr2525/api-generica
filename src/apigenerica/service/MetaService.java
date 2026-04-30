@@ -180,6 +180,17 @@ public class MetaService {
         // Obtener nombres lógicos y amigables
         return metaDao.listarTablasPorDb(nombreDb);
     }
+    
+    
+    /**
+     * Devuelve la lista de todas las tablas registradas para una base de datos.
+     *
+     * @return Lista de metadatos de tablas
+     */
+    public List<String> listarBasesDatos() {
+        // Obtener nombres
+        return metaDao.listarBasesDatos();
+    }
 
     /**
      * Devuelve la configuración completa de una tabla (columnas y relaciones).

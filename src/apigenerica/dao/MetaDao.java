@@ -312,4 +312,19 @@ public class MetaDao {
         }
         return tablas;
     }
+    
+    public List<String> listarBasesDatos() {
+        List<String> dbs = new ArrayList<>();
+        String sql = "SELECT DISTINCT nombre_db FROM erp_meta_tablas";
+
+        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                dbs.add(rs.getString("nombre_db"));
+            }
+        } catch (SQLException e) {
+            throw new BaseDatosException("Error al listar las tablas de la base de datos especificada.", e);
+        }
+        return dbs;
+    }
 }

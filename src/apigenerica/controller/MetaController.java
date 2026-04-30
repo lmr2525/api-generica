@@ -150,6 +150,16 @@ public class MetaController {
         // Devolver la lista de nombres de las tablas
         ctx.json(ApiRespuesta.ok(metaService.listarTablas(db)));
     }
+    
+        /**
+     * Obtener nombre de todas las tablas de una base de datos GET
+     *
+     * @param ctx Contexto de la petición HTTP
+     */
+    public void listarBasesDatos(Context ctx) {
+        // Devolver la lista de nombres de las bases de datos
+        ctx.json(ApiRespuesta.ok(metaService.listarBasesDatos()));
+    }
 
     /**
      * Obtener metadatos de una tabla
