@@ -101,9 +101,10 @@ public class ValidadorService {
                 throw new ValidacionException("La tabla " + t.getNombreLogico() + " no tiene columnas.");
             }
             validarColumnasUnicas(t.getColumnas());
-        }
-        if (request.getRelaciones() != null) {
-            validarRelaciones(request.getRelaciones(), request.getTabla());
+        // Validar relaciones de esta tabla
+        if (t.getRelaciones() != null && !t.getRelaciones().isEmpty()) {
+                validarRelaciones(t, t.getRelaciones());
+            }
         }
     }
 
@@ -127,25 +128,33 @@ public class ValidadorService {
      * petición
      *
      * @param relaciones Metadatos de las relaciones
-     * @param tablas Lista de tablas cuyas relaciones se validarán
      */
-    private void validarRelaciones(List<RelacionConfig> relaciones, List<TablaConfig> tablas) {
+    private void validarRelaciones(TablaConfig origen, List<RelacionConfig> relaciones) {
         for (RelacionConfig rel : relaciones) {
-            // Verificar que la tabla origen esté en el request
-            TablaConfig origen = tablas.stream()
-                    .filter(t -> t.getNombreLogico().equalsIgnoreCase(rel.getTablaOrigen()))
-                    .findFirst()
-                    .orElseThrow(() -> new ValidacionException("La relación '" + rel.getNombreRelacion()
-                    + "' referencia a una tabla origen inexistente: " + rel.getTablaOrigen()));
-
             // Verificar que la columna FK exista en la tabla origen
             boolean existeCol = origen.getColumnas().stream()
                     .anyMatch(c -> c.getNombre().equalsIgnoreCase(rel.getFkColumna()));
 
             if (!existeCol) {
                 throw new ValidacionException("La columna FK '" + rel.getFkColumna()
-                        + "' no existe en la tabla '" + rel.getTablaOrigen() + "'");
+                        + "' no existe en la tabla '" + origen.getNombreAmigable() + "'");
             }
+        }
+    } 
+    
+    /**
+     * Bloquea acciones sobre la base de datos del sistema o la columna ID primaria
+     * 
+     * @param db Nombre de la base de datos
+     * @param columna Nombre de la columna
+     */
+    public void validarProteccionInterna(String db, String columna) {
+        if ("erp_sistema".equalsIgnoreCase(db)) {
+            throw new ValidacionException("No está permitido alterar esta base de datos.");
+        }
+        
+        if (columna != null && "id".equalsIgnoreCase(columna)) {
+            throw new ValidacionException("La columna 'id' no puede ser modificada o eliminada.");
         }
     }
 }

@@ -38,7 +38,7 @@ public class MetaDao {
 
         try (Connection conn = ConexionMysql.getConexion("erp_sistema")) {
             try {
-                conn.setAutoCommit(false); // Transacción para insertar todo junto
+                conn.setAutoCommit(false); // Comenzar transacción
                 long tablaId = 0;
 
                 // Insertar metadatos de la tabla
@@ -100,7 +100,8 @@ public class MetaDao {
                 throw e;
             }
         } catch (SQLException e) {
-            throw new BaseDatosException("Error al guardar configuración de '" + tabla.getNombreLogico() + "'.", e);
+            String nombreAmigable = (tabla.getNombreAmigable() != null) ? tabla.getNombreAmigable() : "especificada";
+            throw new BaseDatosException("Error al guardar la configuración de la tabla '" + nombreAmigable + "'.", e);
         }
     }
 
@@ -114,7 +115,6 @@ public class MetaDao {
         String sqlTabla = "SELECT * FROM `erp_meta_tablas` WHERE nombre_logico = ?";
 
         try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmtTabla = conn.prepareStatement(sqlTabla)) {
-
             stmtTabla.setString(1, nombreLogico);
 
             try (ResultSet rsTabla = stmtTabla.executeQuery()) {
@@ -132,7 +132,7 @@ public class MetaDao {
                 }
             }
         } catch (SQLException e) {
-            throw new BaseDatosException("Error al recuperar configuración de '" + nombreLogico + "'.", e);
+            throw new BaseDatosException("Error al recuperar la configuración de la tabla.", e);
         }
         return null;
     }
@@ -216,7 +216,6 @@ public class MetaDao {
                 + "WHERE r.tabla_destino = ?";
 
         try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmt = conn.prepareStatement(sql)) {
-
             stmt.setString(1, nombreTablaDestino);
 
             try (ResultSet rs = stmt.executeQuery()) {
@@ -231,7 +230,7 @@ public class MetaDao {
                 }
             }
         } catch (SQLException e) {
-            throw new BaseDatosException("Error al recuperar relaciones hijas de " + nombreTablaDestino, e);
+            throw new BaseDatosException("Error al recuperar las relaciones dependientes de la tabla.", e);
         }
         return relacionesHijas;
     }
@@ -258,7 +257,7 @@ public class MetaDao {
             stmt.setString(1, nombreLogico);
             stmt.executeUpdate();
         } catch (SQLException e) {
-            throw new BaseDatosException("Error al eliminar configuración de '" + nombreLogico + "'.", e);
+            throw new BaseDatosException("Error al eliminar la configuración de la tabla.", e);
         }
     }
 
@@ -272,7 +271,6 @@ public class MetaDao {
         String sqlTabla = "SELECT * FROM `erp_meta_tablas`";
 
         try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmtTabla = conn.prepareStatement(sqlTabla); ResultSet rsTabla = stmtTabla.executeQuery()) {
-
             while (rsTabla.next()) {
                 TablaConfig tabla = new TablaConfig();
                 tabla.setId(rsTabla.getLong("id"));
@@ -310,7 +308,7 @@ public class MetaDao {
                 tablas.add(t);
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            throw new BaseDatosException("Error al listar las tablas de la base de datos especificada.", e);
         }
         return tablas;
     }

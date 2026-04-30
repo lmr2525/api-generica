@@ -201,7 +201,8 @@ public class MetaService {
     public void agregarColumna(String nombreTabla, ColumnaConfig nuevaCol) throws SQLException {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
         validador.validarColumnaNoExiste(config, nuevaCol.getNombre());
-
+        validador.validarProteccionInterna(config.getNombreDb(), nuevaCol.getNombre());
+        
         // Crear columna
         String sql = sqlService.generarAddColumnSql(nombreTabla, nuevaCol);
         sqlService.ejecutarSql(config.getNombreDb(), sql);
@@ -215,6 +216,42 @@ public class MetaService {
         metaDao.guardarConfiguracion(config);
     }
     
+    public void eliminarColumna(String nombreTabla, String nombreColumna) throws SQLException {
+        TablaConfig config = metaDao.getConfiguracion(nombreTabla);
+        
+        // Validaciones
+        validador.validarProteccionInterna(config.getNombreDb(), nombreColumna);
+        validador.validarColumnaExiste(config, nombreColumna);
+
+        // Eliminar columna
+        String sql = sqlService.generarDropColumnSql(nombreTabla, nombreColumna);
+        sqlService.ejecutarSql(config.getNombreDb(), sql);
+
+        // Persistencia de metadatos
+        config.getColumnas().removeIf(c -> c.getNombre().equalsIgnoreCase(nombreColumna));
+        metaDao.guardarConfiguracion(config);
+    }
+    
+    public void renombrarColumna(String nombreTabla, String nombreViejo, String nombreNuevo) throws SQLException {
+        TablaConfig config = metaDao.getConfiguracion(nombreTabla);
+
+        // Validaciones
+        validador.validarProteccionInterna(config.getNombreDb(), nombreViejo);
+        validador.validarNombre(nombreNuevo);
+
+        // Renombrar columna
+        String sql = sqlService.generarRenameColumnSql(nombreTabla, nombreViejo, nombreNuevo);
+        sqlService.ejecutarSql(config.getNombreDb(), sql);
+
+        // Persistencia de metadatos
+        config.getColumnas().stream()
+            .filter(c -> c.getNombre().equalsIgnoreCase(nombreViejo))
+            .findFirst()
+            .ifPresent(c -> c.setNombre(nombreNuevo));
+            
+        metaDao.guardarConfiguracion(config);
+    }
+
     /**
      * Modifica una columna de la tabla
      * 
@@ -224,6 +261,7 @@ public class MetaService {
     public void modificarColumna(String nombreTabla, ColumnaConfig colModificada) {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
         validador.validarColumnaExiste(config, colModificada.getNombre());
+        validador.validarProteccionInterna(config.getNombreDb(), colModificada.getNombre());
 
         // Modificar columna
         String sql = sqlService.generarModifyColumnSql(nombreTabla, colModificada);
@@ -235,27 +273,30 @@ public class MetaService {
         }
 
         // Actualizar metadatos si no hubo error
-        config.getColumnas().replaceAll(col ->
-            col.getNombre().equalsIgnoreCase(colModificada.getNombre()) ? colModificada : col
-        );
+        for (int i = 0; i < config.getColumnas().size(); i++) {
+            if (config.getColumnas().get(i).getNombre().equalsIgnoreCase(colModificada.getNombre())) {
+                config.getColumnas().set(i, colModificada);
+                break;
+            }
+        }
         metaDao.guardarConfiguracion(config);
     }
 
-private void procesarErrorMysql(SQLException e) {
-    int errorCode = e.getErrorCode();
-    
-    switch (errorCode) {
-        case 1138: // Cambiar columna a NOT NULL si ya hay nulos
-            throw new ValidacionException("No se puede hacer la columna obligatoria (NOT NULL) porque ya existen registros con valores vacíos.");
-        case 1265: // Datos truncados
-        case 1292: // Valor incorrecto
-        case 1366: // Valor incorrecto de integer/char
-            throw new ValidacionException("No se puede cambiar el tipo de dato. Existen registros incompatibles con el nuevo formato.");
-        case 1060: // Nombre de columna repetido
-            throw new ValidacionException("El nombre de la columna ya está en uso.");
-        default:
-            // Error genérico
-            throw new BaseDatosException("Error en la base de datos al modificar la tabla: " + e.getMessage(), e);
+    private void procesarErrorMysql(SQLException e) {
+        int errorCode = e.getErrorCode();
+
+        switch (errorCode) {
+            case 1138: // Cambiar columna a NOT NULL si ya hay nulos
+                throw new ValidacionException("No se puede hacer la columna obligatoria (NOT NULL) porque ya existen registros con valores vacíos.");
+            case 1265: // Datos truncados
+            case 1292: // Valor incorrecto
+            case 1366: // Valor incorrecto de integer/char
+                throw new ValidacionException("No se puede cambiar el tipo de dato. Existen registros incompatibles con el nuevo formato.");
+            case 1060: // Nombre de columna repetido
+                throw new ValidacionException("El nombre de la columna ya está en uso.");
+            default:
+                // Error genérico
+                throw new BaseDatosException("Error en la base de datos al modificar la tabla: " + e.getMessage(), e);
+        }
     }
-}
 }

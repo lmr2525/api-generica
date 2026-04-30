@@ -62,9 +62,9 @@ public class ApiGenerica {
         // Añadir columnas a una tabla
         app.post("/api/metadata/tablas/{tabla}/columnas", ctx -> metaCtrl.agregarColumna(ctx));
         // Modificar las columnas de una tabla
-        app.put("/api/metadata/tablas/{tabla}/columnas", ctx -> metaCtrl.modificarEstructuraTabla(ctx));
+        app.put("/api/metadata/tablas/{tabla}/columnas/{columna}", ctx -> metaCtrl.modificarColumna(ctx));
         // Eliminar columnas de una tabla
-        app.delete("/api/metadata/tablas/{tabla}/columnas", ctx -> metaCtrl.eliminarColumna(ctx));
+        app.delete("/api/metadata/tablas/{tabla}/columnas/{columna}", ctx -> metaCtrl.eliminarColumna(ctx));
         
         // ── Endpoints de autenticación ───────────────────────────────
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));

@@ -9,6 +9,7 @@ import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ApiRequest;
 import apigenerica.model.ApiRespuesta;
+import apigenerica.model.ColumnaConfig;
 import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
 import apigenerica.service.MetaService;
@@ -152,29 +153,57 @@ public class MetaController {
     }
 
     /**
-     * Agregar columnas a una tabla
+     * Agrega una columna a una tabla
      *
      * @param ctx
      */
     public void agregarColumna(Context ctx) {
-        // Obtener nombre de la tabla de la URL
-        String nombreTabla = ctx.pathParam("tabla");
-        validador.validarNombre(nombreTabla);
+        try {
+            // Obtener nombre de la tabla de la URL
+            String nombreTabla = ctx.pathParam("tabla");
+            // Convertir JSON a objeto ColumnaConfig
+            ColumnaConfig nuevaCol = ctx.bodyAsClass(ColumnaConfig.class);
 
-        // Convertir JSON a objeto ApiRequest
-        ApiRequest request = ctx.bodyAsClass(ApiRequest.class);
-
-        metaService.agregarColumna(nombreTabla, request.getTabla().nuevaCol);
+            // Agregar columna
+            metaService.agregarColumna(nombreTabla, nuevaCol);
+            ctx.status(201).json(ApiRespuesta.ok("Columna agregada correctamente."));
+        } catch (ValidacionException e) {
+            ctx.status(400).json(ApiRespuesta.error(e.getMessage()));
+        } catch (SQLException | BaseDatosException e) {
+            ctx.status(500).json(ApiRespuesta.error("Error en la base de datos al agregar la columna: " + e.getMessage()));
+        }
     }
     
     public void eliminarColumna(Context ctx) {
-        // Obtener nombre de la tabla de la URL
-        String nombreTabla = ctx.pathParam("tabla");
-        
-        // Ignorar eliminación de la primary key
-        if (nombreTabla.equalsIgnoreCase("id")) {
-            throw new ValidacionException("No se puede eliminar esa columna.");
+        try {
+            String nombreTabla = ctx.pathParam("tabla");
+            String nombreColumna = ctx.pathParam("columna");
+
+            metaService.eliminarColumna(nombreTabla, nombreColumna);
+            ctx.status(200).json(ApiRespuesta.ok("Columna eliminada correctamente."));
+        } catch (ValidacionException e) {
+            ctx.status(400).json(ApiRespuesta.error(e.getMessage()));
+        } catch (SQLException | BaseDatosException e) {
+            ctx.status(500).json(ApiRespuesta.error("Error en la base de datos al agregar la columna: " + e.getMessage()));
         }
-        
-        metaService
+    }
+    
+    public void modificarColumna(Context ctx) {
+        try {
+            String nombreTabla = ctx.pathParam("tabla");
+            String nombreColumnaActual = ctx.pathParam("columna");
+            ColumnaConfig colModificada = ctx.bodyAsClass(ColumnaConfig.class);
+
+            // Verificar que el nombre de la URL coincida con el del body
+            if (!nombreColumnaActual.equalsIgnoreCase(colModificada.getNombre())) {
+                throw new ValidacionException("El nombre de la columna en la URL no coincide con los datos enviados.");
+            }
+
+            // Modificar columna
+            metaService.modificarColumna(nombreTabla, colModificada);
+            ctx.status(200).json(ApiRespuesta.ok("Columna modificada correctamente."));
+        } catch (ValidacionException e) {
+            ctx.status(400).json(ApiRespuesta.error(e.getMessage()));
+        }
+    }
 }

@@ -288,7 +288,7 @@ public class BaseDao {
         QueryResult qr = construirFiltrado(nombreTabla, filtros, sort, order, limite, offset);
         List<EntidadDinamica> resultados = new ArrayList<>();
 
-        try (PreparedStatement stmt = conn.prepareStatement(qr.sql) {
+        try (PreparedStatement stmt = conn.prepareStatement(qr.sql)) {
             for (int i = 0; i < qr.valores.size(); i++) {
                 stmt.setObject(i + 1, qr.valores.get(i));
             }
