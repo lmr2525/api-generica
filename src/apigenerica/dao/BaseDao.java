@@ -12,8 +12,7 @@ import java.sql.*;
 import java.util.*;
 
 /**
- * @author Grupo1 C
- * onsultas CRUD con las tablas
+ * @author Grupo1 Consultas CRUD con las tablas
  */
 public class BaseDao {
 
@@ -285,7 +284,7 @@ public class BaseDao {
             throw new IllegalArgumentException("El offset no puede ser negativo");
         }
 
-        QueryResult qr = construirFiltrado(nombreTabla, filtros, sort, order, limite, offset);
+        QueryResult qr = construirFiltrado(nombreTabla, columnas, filtros, sort, order, limite, offset);
         List<EntidadDinamica> resultados = new ArrayList<>();
 
         try (PreparedStatement stmt = conn.prepareStatement(qr.sql)) {
@@ -326,7 +325,7 @@ public class BaseDao {
         String[] sqlIncludes = construirIncludes(tablaPrincipal, relaciones, colsHijas);
 
         // Construir la subconsulta con filtros para la tabla principal
-        QueryResult qr = construirFiltrado(tablaPrincipal, filtros, sort, order, limite, offset);
+        QueryResult qr = construirFiltrado(tablaPrincipal, columnasPrincipal, filtros, sort, order, limite, offset);
 
         // Unirlas
         String sql = "SELECT t1.*" + sqlIncludes[0]
@@ -405,8 +404,9 @@ public class BaseDao {
         return padre;
     }
 
-    private QueryResult construirFiltrado(String nombreTabla, Map<String, String> filtros,
-            String sort, String order, int limite, int offset) {
+    private QueryResult construirFiltrado(String nombreTabla, List<ColumnaConfig> columnasConfig,
+            Map<String, String> filtros, String sort, String order,
+            int limite, int offset) {
         StringBuilder sql = new StringBuilder("SELECT * FROM `").append(nombreTabla).append("` ");
         List<Object> valores = new ArrayList<>();
 
@@ -414,8 +414,22 @@ public class BaseDao {
             sql.append(" WHERE ");
             List<String> condiciones = new ArrayList<>();
             for (Map.Entry<String, String> f : filtros.entrySet()) {
-                condiciones.add("`" + f.getKey() + "` = ?");
-                valores.add(f.getValue());
+                String fullKey = f.getKey(); // Nombre de columna + prefijo
+                String valorRaw = f.getValue(); // Condición
+
+                // Extraer operador y nombre de columna 
+                String[] partes = fullKey.split("__");
+                String nombreColumna = partes[0]; // Nombre real de la columna
+                String sufijo = (partes.length > 1) ? partes[1] : "eq"; // Operación (eq por defecto)
+
+                // Validar que la columna existe en los metadatos
+                boolean existeColumna = columnasConfig.stream()
+                        .anyMatch(c -> c.getNombre().equalsIgnoreCase(nombreColumna));
+
+                if (!existeColumna) {
+                    continue; // Ignorar si la columna no existe
+                }
+                mapearSufijos(sufijo, nombreColumna, valorRaw, condiciones, valores);
             }
             sql.append(String.join(" AND ", condiciones));
         }
@@ -433,6 +447,7 @@ public class BaseDao {
     }
 
     /**
+     * Construye una sentencia JOIN de SQL
      *
      * @param tablaPrincipal
      * @param relaciones
@@ -509,6 +524,47 @@ public class BaseDao {
             try (ResultSet rs = stmt.executeQuery()) {
                 return rs.next() ? rs.getLong(1) : 0;
             }
+        }
+    }
+
+    /**
+     * Obtiene un sufijo, correspondiente a una operación válida WHERE y
+     * construye la sentencia SQL equivalente. Ejemplo: el sufijo "eq" se
+     * traduce a `columna` = ?
+     *
+     * @param sufijo Sufijo para filtro WHERE (eq, lt, gt, lte, gte, contains)
+     * @param nombreColumna Nombre de la columna
+     * @param valor Valor de la condición
+     * @param condiciones Lista de condiciones (array de sentencias)
+     * @param valores Lista de valores (valor que reemplaza a ?)
+     */
+    private void mapearSufijos(String sufijo, String nombreColumna, String valor,
+            List<String> condiciones, List<Object> valores) {
+        switch (sufijo) {
+            case "gt": // Mayor que (>)
+                condiciones.add("`" + nombreColumna + "` > ?");
+                valores.add(valor);
+                break;
+            case "lt": // Menor que (<)
+                condiciones.add("`" + nombreColumna + "` < ?");
+                valores.add(valor);
+                break;
+            case "gte": // Mayor o igual que (>=)
+                condiciones.add("`" + nombreColumna + "` >= ?");
+                valores.add(valor);
+                break;
+            case "lte": // Menor o igual que (<=)
+                condiciones.add("`" + nombreColumna + "` <= ?");
+                valores.add(valor);
+                break;
+            case "contains": // LIKE %val%
+                condiciones.add("`" + nombreColumna + "` LIKE ?");
+                valores.add("%" + valor + "%");
+                break;
+            default: // Igualdad (=)
+                condiciones.add("`" + nombreColumna + "` = ?");
+                valores.add(valor);
+                break;
         }
     }
 
