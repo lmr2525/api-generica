@@ -19,13 +19,13 @@ public class ConexionParadox {
     public ConexionParadox(String ruta) throws SQLException {
         this.conexion = DriverManager.getConnection("jdbc:paradox:/" + ruta);
     }
-
-    public <T> T ejecutar(ConParadox<T> operacion) throws SQLException {
-        lock.lock(); // Bloquea la conexión
-        try {
-            return operacion.ejecutar(conexion);
-        } finally {
-            lock.unlock(); // Liberar conexión
-        }
-    }
+//
+//    public <T> T ejecutar(ConParadox<T> operacion) throws SQLException {
+//        lock.lock(); // Bloquea la conexión
+//        try {
+//            return operacion.ejecutar(conexion);
+//        } finally {
+//            lock.unlock(); // Liberar conexión
+//        }
+//    }
 }

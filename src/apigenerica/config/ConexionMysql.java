@@ -18,7 +18,7 @@ public class ConexionMysql {
     private static HikariDataSource ds;
     private static final String URL = "jdbc:mysql://localhost:3306";
     private static final String USUARIO = "root";
-    private static final String PWD = "";
+    private static final String PWD = "root";
 
     /**
      * Inicializa el pool de conexiones y crea las tablas de metadatos
@@ -82,7 +82,7 @@ public class ConexionMysql {
             // Base de datos del sistema ERP
             stmt.executeUpdate("CREATE DATABASE IF NOT EXISTS `erp_sistema` " +
                 "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-            conn.setCatalog("erp_sistema");
+            stmt.execute("USE `erp_sistema` ");
 
             // Tabla de configuración global de la empresa
             stmt.executeUpdate(

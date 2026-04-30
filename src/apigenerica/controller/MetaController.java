@@ -66,7 +66,7 @@ public class MetaController {
             request.getTabla().sort(Comparator.comparingInt(t -> orden.indexOf(t.getNombreLogico())));
 
             // Asegurar que la base de datos existe. Crearla si no
-            crearBaseDatos(request);
+            crearBaseDatos(ctx);
 
             int tablasCreadas = procesarFormulario(request);
             ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok("Se han creado " + tablasCreadas + " tablas."));
@@ -75,6 +75,23 @@ public class MetaController {
         }
     }
 
+    /**
+     * Crea la base de datos si no existe.
+     *
+     * @param request Datos de la petición
+     * @throws SQLException
+     */
+    public void crearBaseDatos(Context ctx) throws SQLException {
+        // Convertir JSON a objeto ApiRequest
+        ApiRequest request = ctx.bodyAsClass(ApiRequest.class);
+            
+        // Validaciones
+        validador.validarNombre(request.getBaseDatos());
+        // Crear base de datos
+        String sql = sqlService.generarCreateDbSql(request.getBaseDatos());
+        sqlService.ejecutarSql(null, sql);
+    }
+    
     /**
      * Crea la base de datos si no existe.
      *
