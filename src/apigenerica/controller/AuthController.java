@@ -41,9 +41,9 @@ public class AuthController {
             return;
         }
 
-        String sql = "SELECT id, Contrasena, rol FROM `erp_users` WHERE `Email` = ?";
+        String sql = "SELECT id, contrasena, rol FROM `erp_users` WHERE `email` = ? AND `activo` = 1";
         
-        try (Connection conn = ConexionMysql.getConexion("erp_sistemas");
+        try (Connection conn = ConexionMysql.getConexion("erp_sistema");
             PreparedStatement stmt = conn.prepareStatement(sql)) { 
             stmt.setString(1, email);  
             try (ResultSet rs = stmt.executeQuery()) {

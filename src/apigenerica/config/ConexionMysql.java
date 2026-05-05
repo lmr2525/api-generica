@@ -92,6 +92,17 @@ public class ConexionMysql {
                 "  `actualizado` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
+            
+             // Tabla de usuarios de la aplicación
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS `erp_users` (" +
+                "  `id` INT AUTO_INCREMENT PRIMARY KEY," +
+                "  `email` VARCHAR(255) NOT NULL," +
+                "  `contrasena` CHAR(60) NOT NULL," +
+                "  `rol` VARCHAR(50) NOT NULL," +        
+                "  `activo` TINYINT(1) NOT NULL DEFAULT 1" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+            );
 
             // Tabla de módulos instalados
             stmt.executeUpdate(
