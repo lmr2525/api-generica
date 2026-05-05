@@ -24,7 +24,9 @@ import java.util.Map;
 public class ModuloController {
 
     /**
-     * Endpoint: GET /api/erp/modulos
+     * Devuelve los módulos existentes
+     * 
+     * @param ctx Contexto de la petición HTTP
      */
     public void getAll(Context ctx) {
         String sql = "SELECT * FROM `erp_modulos` ORDER BY orden ASC";
@@ -52,7 +54,9 @@ public class ModuloController {
     }
 
     /**
-     * Endpoint: POST /api/erp/modulos
+     * Crear un nuevo módulo
+     * 
+     * @param ctx Contexto de la petición HTTP
      */
     @SuppressWarnings("unchecked")
     public void create(Context ctx) {
@@ -84,7 +88,9 @@ public class ModuloController {
     }
 
     /**
-     * Endpoint: DELETE /api/erp/modulos/{id}
+     * Borrar un módulo a partir de su ID
+     * 
+     * @param ctx Contexto de la petición HTTP
      */
     public void delete(Context ctx) {
         String idStr = ctx.pathParam("id");

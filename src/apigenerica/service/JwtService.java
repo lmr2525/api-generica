@@ -17,7 +17,7 @@ import java.util.Date;
 public class JwtService {
 
     //private static final String SECRET_KEY = System.getenv("SECRET_KEY");
-    private static final String SECRET_KEY = "clave_secreta_de_prueba";
+    private static final String SECRET_KEY = "clave_secreta_de_prueba"; // Firma y verifica los tokens
     private static final Algorithm algorithm = Algorithm.HMAC256(SECRET_KEY);
 
     public String generarToken(Long usuarioId, String rol) {

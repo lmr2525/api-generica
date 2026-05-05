@@ -93,7 +93,7 @@ public class ConexionMysql {
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
             
-             // Tabla de usuarios de la aplicación
+            // Tabla de usuarios de la aplicación
             stmt.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS `erp_users` (" +
                 "  `id` INT AUTO_INCREMENT PRIMARY KEY," +
