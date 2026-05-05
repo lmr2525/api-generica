@@ -8,13 +8,16 @@ import apigenerica.controller.ModuloController;
 import apigenerica.dao.BaseDao;
 import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
+import apigenerica.excepciones.NoAutorizadoException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ApiRespuesta;
+import apigenerica.service.JwtService;
 import apigenerica.service.MetaService;
 import apigenerica.service.OrderService;
 import apigenerica.service.SqlService;
 import apigenerica.service.ValidadorService;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.Javalin;
 
 /**
@@ -35,11 +38,12 @@ public class ApiGenerica {
         SqlService sqlService = new SqlService(validador);
         MetaService metaService = new MetaService(metaDao, validador, sqlService);
         OrderService orderService = new OrderService(metaDao);
-
+        JwtService jwtService = new JwtService();
+        
         // ── Instanciar controladores ─────────────────────────────────
         BaseDao baseDao = new BaseDao();
         BaseController baseCtrl = new BaseController(validador, metaService, baseDao, orderService);
-        AuthController authCtrl = new AuthController(baseDao);
+        AuthController authCtrl = new AuthController(jwtService);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
         MetaController metaCtrl = new MetaController(metaService, validador, orderService, sqlService);
@@ -52,11 +56,35 @@ public class ApiGenerica {
             config.enableDevLogging();
         }).start(7000);
 
+        app.before(ctx -> {
+        String path = ctx.path();
+
+        if (path.equals("api/auth") || path.startsWith("api/store")) {
+            return; // No pedir token aquí
+        }
+
+        // Extraer token de las rutas protegidas
+        String authHeader = ctx.header("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new Exception("Token no proporcionado");
+        }
+
+        String token = authHeader.replace("Bearer ", "");
+
+        try {
+            // Validar el token
+            DecodedJWT jwt = jwtService.verificarToken(token);
+            
+            // Inyectar el ID del usuario en el contexto por si el controller lo necesita
+            ctx.attribute("usuarioId", jwt.getClaim("id").asLong());
+            
+        } catch (Exception e) {
+            // Si el token es incorrecto
+            throw new NoAutorizadoException("Token inválido o expirado", e);
+        }
+    });
+        
         // ── Endpoints de metadatos ──────────────
-        // Crear tablas
-        app.post("/api/metadata/db", ctx -> metaCtrl.crearBaseDatos(ctx));
-        // Obtener lista de bases de datos
-        app.get("/api/metadata/db", ctx -> metaCtrl.listarBasesDatos(ctx));
         // Crear tablas
         app.post("/api/metadata/tablas", ctx -> metaCtrl.crearTabla(ctx));
         // Obtener metadatos (lista de nombres) de todas las tablas
@@ -104,9 +132,12 @@ public class ApiGenerica {
         app.exception(RecursoNoEncontradoException.class, (e, ctx) ->
             ctx.status(404).json(ApiRespuesta.error(e.getMessage())));
 
+        app.exception(NoAutorizadoException.class, (e, ctx) ->
+            ctx.status(401).json(ApiRespuesta.error(e.getMessage())));
+
         app.exception(BaseDatosException.class, (e, ctx) ->
             ctx.status(500).json(ApiRespuesta.error(e.getMessage())));
-
+        
         app.exception(Exception.class, (e, ctx) -> {
             System.err.println("Error no controlado: " + e.getMessage());
             e.printStackTrace();

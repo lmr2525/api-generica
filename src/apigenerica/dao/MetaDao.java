@@ -28,7 +28,7 @@ public class MetaDao {
         // Eliminar configuración anterior si existe
         eliminarConfiguracion(tabla.getNombreLogico());
 
-        String sqlTabla = "INSERT INTO `erp_meta_tablas` (nombre_db, nombre_logico, nombre_amigable) VALUES (?, ?, ?)";
+        String sqlTabla = "INSERT INTO `erp_meta_tablas` (modulo_id, nombre_logico, nombre_amigable) VALUES (?, ?, ?)";
         String sqlColumna = "INSERT INTO `erp_meta_columnas` "
                 + "(tabla_id, nombre, tipo, nullable, es_contrasena, visible, autoincremental, unico, valor_defecto) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -43,7 +43,7 @@ public class MetaDao {
 
                 // Insertar metadatos de la tabla
                 try (PreparedStatement stmtTabla = conn.prepareStatement(sqlTabla, Statement.RETURN_GENERATED_KEYS)) {
-                    stmtTabla.setString(1, tabla.getNombreDb());
+                    stmtTabla.setLong(1, tabla.getModuloId());
                     stmtTabla.setString(2, tabla.getNombreLogico());
                     stmtTabla.setString(3, tabla.getNombreAmigable());
                     stmtTabla.executeUpdate();
@@ -121,7 +121,7 @@ public class MetaDao {
                 if (rsTabla.next()) {
                     TablaConfig tabla = new TablaConfig();
                     tabla.setId(rsTabla.getLong("id"));
-                    tabla.setNombreDb(rsTabla.getString("nombre_db"));
+                    tabla.setModuloId(rsTabla.getLong("modulo_id"));
                     tabla.setNombreLogico(rsTabla.getString("nombre_logico"));
                     tabla.setNombreAmigable(rsTabla.getString("nombre_amigable"));
 
@@ -274,7 +274,7 @@ public class MetaDao {
             while (rsTabla.next()) {
                 TablaConfig tabla = new TablaConfig();
                 tabla.setId(rsTabla.getLong("id"));
-                tabla.setNombreDb(rsTabla.getString("nombre_db"));
+                tabla.setModuloId(rsTabla.getLong("modulo_id"));
                 tabla.setNombreLogico(rsTabla.getString("nombre_logico"));
                 tabla.setNombreAmigable(rsTabla.getString("nombre_amigable"));
                 tabla.setColumnas(getColumnasPorTablaId(conn, tabla.getId()));
@@ -288,18 +288,18 @@ public class MetaDao {
     }
 
     /**
-     * Obtener los nombres de las tablas (lógico y amigable) de la base de datos
-     * especificada
+     * Obtener los nombres de las tablas (lógico y amigable) del módulo
+     * especificado
      *
-     * @param nombreDb Nombre de la base de datos
+     * @param moduloId ID del módulo
      * @return Lista de metadatos de las tablas
      */
-    public List<TablaConfig> listarTablasPorDb(String nombreDb) {
+    public List<TablaConfig> listarTablasPorModulo(Long moduloId) {
         List<TablaConfig> tablas = new ArrayList<>();
-        String sql = "SELECT nombre_logico, nombre_amigable FROM erp_meta_tablas WHERE nombre_db = ?";
+        String sql = "SELECT nombre_logico, nombre_amigable FROM erp_meta_tablas WHERE modulo_id = ?";
 
         try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, nombreDb);
+            ps.setLong(1, moduloId);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 TablaConfig t = new TablaConfig();
@@ -308,23 +308,8 @@ public class MetaDao {
                 tablas.add(t);
             }
         } catch (SQLException e) {
-            throw new BaseDatosException("Error al listar las tablas de la base de datos especificada.", e);
+            throw new BaseDatosException("Error al listar las tablas del módulo especificado.", e);
         }
         return tablas;
-    }
-    
-    public List<String> listarBasesDatos() {
-        List<String> dbs = new ArrayList<>();
-        String sql = "SELECT DISTINCT nombre_db FROM erp_meta_tablas";
-
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                dbs.add(rs.getString("nombre_db"));
-            }
-        } catch (SQLException e) {
-            throw new BaseDatosException("Error al listar las tablas de la base de datos especificada.", e);
-        }
-        return dbs;
     }
 }

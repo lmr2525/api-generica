@@ -13,16 +13,16 @@ import java.util.List;
  */
 public class ApiRequest {
 
-    private String baseDatos; // Nombre lógico de la base de datos
+    private Long moduloId; // ID del módulo asignado a la tabla
     private List<TablaConfig> tabla; // Datos de la tabla
 
     // Getters y setters
-    public String getBaseDatos() {
-        return baseDatos;
+    public Long getModuloId() {
+        return moduloId;
     }
 
-    public void setBaseDatos(String baseDatos) {
-        this.baseDatos = baseDatos;
+    public void setModuloId(Long moduloId) {
+        this.moduloId = moduloId;
     }
 
     public List<TablaConfig> getTabla() {

@@ -4,6 +4,7 @@
  */
 package apigenerica.service;
 
+import apigenerica.config.AppConfig;
 import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
@@ -173,23 +174,12 @@ public class MetaService {
     /**
      * Devuelve la lista de todas las tablas registradas para una base de datos.
      *
-     * @param nombreDb Nombre de la base de datos
+     * @param moduloId
      * @return Lista de metadatos de tablas
      */
-    public List<TablaConfig> listarTablas(String nombreDb) {
+        public List<TablaConfig> listarTablas(Long moduloId) {
         // Obtener nombres lógicos y amigables
-        return metaDao.listarTablasPorDb(nombreDb);
-    }
-    
-    
-    /**
-     * Devuelve la lista de todas las tablas registradas para una base de datos.
-     *
-     * @return Lista de metadatos de tablas
-     */
-    public List<String> listarBasesDatos() {
-        // Obtener nombres
-        return metaDao.listarBasesDatos();
+        return metaDao.listarTablasPorModulo(moduloId);
     }
 
     /**
@@ -212,11 +202,11 @@ public class MetaService {
     public void agregarColumna(String nombreTabla, ColumnaConfig nuevaCol) throws SQLException {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
         validador.validarColumnaNoExiste(config, nuevaCol.getNombre());
-        validador.validarProteccionInterna(config.getNombreDb(), nuevaCol.getNombre());
+        validador.validarProteccionInterna(nuevaCol.getNombre());
         
         // Crear columna
         String sql = sqlService.generarAddColumnSql(nombreTabla, nuevaCol);
-        sqlService.ejecutarSql(config.getNombreDb(), sql);
+        sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
         
         // Actualizar metadatos
         if ("CONTRASENA".equalsIgnoreCase(nuevaCol.getTipo())) {
@@ -231,12 +221,12 @@ public class MetaService {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
         
         // Validaciones
-        validador.validarProteccionInterna(config.getNombreDb(), nombreColumna);
+        validador.validarProteccionInterna(nombreColumna);
         validador.validarColumnaExiste(config, nombreColumna);
 
         // Eliminar columna
         String sql = sqlService.generarDropColumnSql(nombreTabla, nombreColumna);
-        sqlService.ejecutarSql(config.getNombreDb(), sql);
+        sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
 
         // Persistencia de metadatos
         config.getColumnas().removeIf(c -> c.getNombre().equalsIgnoreCase(nombreColumna));
@@ -255,12 +245,12 @@ public class MetaService {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
 
         // Validaciones
-        validador.validarProteccionInterna(config.getNombreDb(), nombreViejo);
+        validador.validarProteccionInterna(nombreViejo);
         validador.validarNombre(nombreNuevo);
 
         // Renombrar columna
         String sql = sqlService.generarRenameColumnSql(nombreTabla, nombreViejo, nombreNuevo);
-        sqlService.ejecutarSql(config.getNombreDb(), sql);
+        sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
 
         // Persistencia de metadatos
         config.getColumnas().stream()
@@ -280,12 +270,12 @@ public class MetaService {
     public void modificarColumna(String nombreTabla, ColumnaConfig colModificada) {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
         validador.validarColumnaExiste(config, colModificada.getNombre());
-        validador.validarProteccionInterna(config.getNombreDb(), colModificada.getNombre());
+        validador.validarProteccionInterna(colModificada.getNombre());
 
         // Modificar columna
         String sql = sqlService.generarModifyColumnSql(nombreTabla, colModificada);
         try {
-            sqlService.ejecutarSql(config.getNombreDb(), sql);
+            sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
             
             // Persistir metadatos
             for (int i = 0; i < config.getColumnas().size(); i++) {

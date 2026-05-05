@@ -1,16 +1,17 @@
 package apigenerica.controller;
 
 import apigenerica.config.ConexionMysql;
-import apigenerica.dao.BaseDao;
 import apigenerica.model.ApiRespuesta;
+import apigenerica.service.JwtService;
 import io.javalin.http.Context;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
+import org.mindrot.jbcrypt.BCrypt;
 
 /**
  * Controlador para la autenticación de usuarios en el ERP.
@@ -18,10 +19,10 @@ import java.util.Map;
  */
 public class AuthController {
 
-    private final BaseDao baseDao;
+    private final JwtService jwtService;
 
-    public AuthController(BaseDao baseDao) {
-        this.baseDao = baseDao;
+    public AuthController(JwtService jwtService) {
+        this.jwtService = jwtService;
     }
 
     /**
@@ -40,32 +41,39 @@ public class AuthController {
             return;
         }
 
-        String sql = "SELECT * FROM `erp_users` WHERE `Email` = ? AND `Contrasena` = ?";
+        String sql = "SELECT id, Contrasena, rol FROM `erp_users` WHERE `Email` = ?";
         
-        try (Connection conn = ConexionMysql.getConexion("prueba"); // Asumiendo que empleados está en 'prueba'
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setString(1, email);
-            stmt.setString(2, password);
-            
+        try (Connection conn = ConexionMysql.getConexion("erp_sistemas");
+            PreparedStatement stmt = conn.prepareStatement(sql)) { 
+            stmt.setString(1, email);  
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    Map<String, Object> empleado = new LinkedHashMap<>();
-                    empleado.put("id", rs.getInt("ID"));
-                    empleado.put("nombre", rs.getString("Nombre"));
-                    empleado.put("apellidos", rs.getString("Apellidos"));
-                    empleado.put("email", rs.getString("Email"));
-                    empleado.put("telefono", rs.getString("Telefono"));
-                    
-                    ctx.json(ApiRespuesta.ok(empleado));
+                    // Obtener hash de la contraseña de la base de datos
+                    String hashGuardado = rs.getString("Contrasena");
+                    // Comparar hash de la contraseña introducida con el de la base de datos
+                    if (BCrypt.checkpw(password, hashGuardado)) {
+                        // Contraseña correcta: Extraer los datos necesarios
+                        Long usuarioId = rs.getLong("id");
+                        String rol = rs.getString("rol");
+
+                        // Generar el JWT
+                        String token = jwtService.generarToken(usuarioId, rol);
+                        Map<String, String> respuesta = new HashMap<>();
+                        respuesta.put("token", token);
+                        ctx.status(200).json(ApiRespuesta.ok(respuesta));
+                    } else {
+                        // Contraseña incorrecta
+                        ctx.status(401).json(ApiRespuesta.error("Credenciales incorrectas."));
+                    }
                 } else {
+                    // Si el usuario (email) no se encuentra en la base de datos
                     ctx.status(401).json(ApiRespuesta.error("Credenciales incorrectas."));
                 }
             }
         } catch (SQLException e) {
-            // Si la tabla no existe (no instalado), retornamos 401 simulando error
+            // Si la tabla no existe (no instalado)
             System.err.println("Error login: " + e.getMessage());
-            ctx.status(401).json(ApiRespuesta.error("Error al autenticar o tabla no existe."));
+            ctx.status(500).json(ApiRespuesta.error("Error interno al autenticar."));
         }
     }
 }

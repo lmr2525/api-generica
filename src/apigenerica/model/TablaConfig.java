@@ -12,12 +12,13 @@ import java.util.List;
  */
 public class TablaConfig {
     Long id;
-    String nombreDb;
+    private Long moduloId;
     String nombreLogico;
     String nombreAmigable;
     List<ColumnaConfig> columnas;
     List<RelacionConfig> relaciones;
 
+    // Setters y getters
     public Long getId() {
         return id;
     }
@@ -26,12 +27,12 @@ public class TablaConfig {
         this.id = id;
     }
 
-    public String getNombreDb() {
-        return nombreDb;
+    public Long getModuloId() {
+        return moduloId;
     }
 
-    public void setNombreDb(String nombreDb) {
-        this.nombreDb = nombreDb;
+    public void setModuloId(Long moduloId) {
+        this.moduloId = moduloId;
     }
 
     public String getNombreLogico() {

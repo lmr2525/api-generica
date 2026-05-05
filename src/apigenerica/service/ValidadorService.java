@@ -89,8 +89,8 @@ public class ValidadorService {
      * @param request Request enviada por el cliente
      */
     public void validarMetadata(ApiRequest request) {
-        if (request.getBaseDatos() == null || request.getBaseDatos().trim().isEmpty()) {
-            throw new ValidacionException("La base de datos es obligatoria.");
+        if (request.getModuloId() == null || request.getModuloId() <= 0) {
+            throw new ValidacionException("El ID del módulo es obligatorio y debe ser válido.");
         }
         if (request.getTabla() == null || request.getTabla().isEmpty()) {
             throw new ValidacionException("Debe proporcionar al menos una tabla.");
@@ -145,14 +145,9 @@ public class ValidadorService {
     /**
      * Bloquea acciones sobre la base de datos del sistema o la columna ID primaria
      * 
-     * @param db Nombre de la base de datos
      * @param columna Nombre de la columna
      */
-    public void validarProteccionInterna(String db, String columna) {
-        if ("erp_sistema".equalsIgnoreCase(db)) {
-            throw new ValidacionException("No está permitido alterar esta base de datos.");
-        }
-        
+    public void validarProteccionInterna(String columna) {
         if (columna != null && "id".equalsIgnoreCase(columna)) {
             throw new ValidacionException("La columna 'id' no puede ser modificada o eliminada.");
         }

@@ -1,6 +1,7 @@
 package apigenerica.controller;
 
 import apigenerica.TipoDatoMapper;
+import apigenerica.config.AppConfig;
 import apigenerica.config.ConexionMysql;
 import apigenerica.dao.BaseDao;
 import apigenerica.excepciones.BaseDatosException;
@@ -75,7 +76,6 @@ public class BaseController {
 
         // Buscar metadatos de la tabla de MySQL
         TablaConfig config = metaService.getConfiguracion(tabla);
-        String baseDatos = config.getNombreDb();
         List<ColumnaConfig> columnas = config.getColumnas() != null
                 ? config.getColumnas() : new ArrayList<>();
 
@@ -83,7 +83,7 @@ public class BaseController {
         List<RelacionConfig> relaciones = metaService.getRelaciones(tabla, includes);
         Map<String, List<ColumnaConfig>> colsHijas = obtenerColumnasHijas(relaciones);
 
-        try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             long totalRegistros = baseDao.contarRegistros(conn, tabla, filtros);
             int totalPaginas = (int) Math.ceil((double) totalRegistros / limite);
 
@@ -144,7 +144,6 @@ public class BaseController {
 
         // Buscar metadatos de la tabla de MySQL
         TablaConfig config = metaService.getConfiguracion(tabla);
-        String baseDatos = config.getNombreDb();
         List<ColumnaConfig> columnas = config.getColumnas() != null
                 ? config.getColumnas() : new ArrayList<>();
 
@@ -152,7 +151,7 @@ public class BaseController {
         List<RelacionConfig> relaciones = metaService.getRelaciones(tabla, includes);
         Map<String, List<ColumnaConfig>> colsHijas = obtenerColumnasHijas(relaciones);
 
-        try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             Object resultado;
 
             // Si hay relaciones, SELECT con includes
@@ -199,12 +198,11 @@ public class BaseController {
 
         // Buscar metadatos de la tabla de MySQL
         TablaConfig config = metaService.getConfiguracion(tabla);
-        String baseDatos = config.getNombreDb();
         if (config.getColumnas() != null) {
             datos = convertirTipos(datos, config.getColumnas());
         }
 
-        try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             long id = baseDao.insertar(conn, tabla, datos);
             Map<String, Object> respuesta = new LinkedHashMap<>();
             respuesta.put("id", id);
@@ -232,7 +230,6 @@ public class BaseController {
         List<String> orden = orderService.ordenarTablas(new ArrayList<>(datosRaw.keySet()));
 
         Map<String, EntidadDinamica> datosPorTabla = new LinkedHashMap<>();
-        String baseDatos = null;
 
         for (String tabla : orden) {
             Map<String, Object> mapaDatos = (Map<String, Object>) datosRaw.get(tabla);
@@ -245,24 +242,15 @@ public class BaseController {
             mapaDatos.forEach(entidad::set);
 
             TablaConfig config = metaService.getConfiguracion(tabla);
-            if (config != null) {
-                if (baseDatos == null) {
-                    baseDatos = config.getNombreDb();
-                }
-                if (config.getColumnas() != null) {
-                    entidad = convertirTipos(entidad, config.getColumnas());
-                }
+            if (config != null && config.getColumnas() != null) {
+                entidad = convertirTipos(entidad, config.getColumnas());
             }
             datosPorTabla.put(tabla, entidad);
         }
 
-        if (baseDatos == null) {
-            throw new RecursoNoEncontradoException("No se encontró configuración para ninguna tabla.");
-        }
-
         List<RelacionConfig> relaciones = metaService.getRelacionesEntreTablas(orden);
 
-        try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             conn.setAutoCommit(false);
             try {
                 Map<String, Long> idsGenerados = baseDao.insertarTransaccional(conn, orden, datosPorTabla, relaciones);
@@ -300,12 +288,11 @@ public class BaseController {
 
         // Buscar metadatos de la tabla de MySQL
         TablaConfig config = metaService.getConfiguracion(tabla);
-        String baseDatos = config.getNombreDb();
         if (config.getColumnas() != null) {
             datos = convertirTipos(datos, config.getColumnas());
         }
 
-        try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             int filas = baseDao.actualizar(conn, tabla, datos, id);
             if (filas == 0) {
                 throw new RecursoNoEncontradoException("No se encontró registro.");
@@ -336,7 +323,6 @@ public class BaseController {
         List<String> orden = orderService.ordenarTablas(new ArrayList<>(datosRaw.keySet()));
 
         Map<String, EntidadDinamica> datosPorTabla = new LinkedHashMap<>();
-        String baseDatos = null;
 
         for (String tabla : orden) {
             Map<String, Object> mapaDatos = (Map<String, Object>) datosRaw.get(tabla);
@@ -349,22 +335,13 @@ public class BaseController {
             mapaDatos.forEach(entidad::set);
 
             TablaConfig config = metaService.getConfiguracion(tabla);
-            if (config != null) {
-                if (baseDatos == null) {
-                    baseDatos = config.getNombreDb();
-                }
-                if (config.getColumnas() != null) {
-                    entidad = convertirTipos(entidad, config.getColumnas());
-                }
+            if (config != null && config.getColumnas() != null) {
+                entidad = convertirTipos(entidad, config.getColumnas());
             }
             datosPorTabla.put(tabla, entidad);
         }
 
-        if (baseDatos == null) {
-            throw new RecursoNoEncontradoException("No se encontró configuración para ninguna tabla.");
-        }
-
-        try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             conn.setAutoCommit(false);
             try {
                 int filasAfectadas = baseDao.actualizarTransaccional(conn, orden, datosPorTabla, id);
@@ -392,12 +369,11 @@ public class BaseController {
         String tabla = ctx.pathParam("tabla");
         Long id = ctx.pathParamAsClass("id", Long.class).get();
         validador.validarNombre(tabla);
+        
+        // Verificar que la tabla existe
+        metaService.getConfiguracion(tabla);
 
-        // Buscar metadatos de la tabla de MySQL
-        TablaConfig config = metaService.getConfiguracion(tabla);
-        String baseDatos = config.getNombreDb();
-
-        try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             int filas = baseDao.eliminar(conn, tabla, id); // Intentar eliminar registro
             if (filas == 0) {
                 throw new RecursoNoEncontradoException("No se encontró registro.");
@@ -425,19 +401,12 @@ public class BaseController {
         // Ordenar y luego invertir para respetar FK en el DELETE
         List<String> orden = orderService.ordenarTablas(tablas);
 
-        String baseDatos = null;
+        // Validar que las tablas existen
         for (String tabla : orden) {
-            TablaConfig config = metaService.getConfiguracion(tabla);
-            if (config != null && baseDatos == null) {
-                baseDatos = config.getNombreDb();
-                break;
-            }
-        }
-        if (baseDatos == null) {
-            throw new RecursoNoEncontradoException("No se encontró configuración.");
+            metaService.getConfiguracion(tabla);
         }
 
-        try (Connection conn = ConexionMysql.getConexion(baseDatos)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             conn.setAutoCommit(false);
             try {
                 int filas = baseDao.eliminarTransaccional(conn, orden, id);

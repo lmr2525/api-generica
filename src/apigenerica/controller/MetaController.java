@@ -4,6 +4,7 @@
  */
 package apigenerica.controller;
 
+import apigenerica.config.AppConfig;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
@@ -65,45 +66,11 @@ public class MetaController {
             // Ordenar metadatos según índice que ocupa la tabla en la lista
             request.getTabla().sort(Comparator.comparingInt(t -> orden.indexOf(t.getNombreLogico())));
 
-            // Asegurar que la base de datos existe. Crearla si no
-            crearBaseDatos(ctx);
-
             int tablasCreadas = procesarFormulario(request);
             ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok("Se han creado " + tablasCreadas + " tablas."));
         } catch (SQLException e) {
             throw new BaseDatosException("Error al crear tablas.", e);
         }
-    }
-
-    /**
-     * Crea la base de datos si no existe.
-     *
-     * @param request Datos de la petición
-     * @throws SQLException
-     */
-    public void crearBaseDatos(Context ctx) throws SQLException {
-        // Convertir JSON a objeto ApiRequest
-        ApiRequest request = ctx.bodyAsClass(ApiRequest.class);
-            
-        // Validaciones
-        validador.validarNombre(request.getBaseDatos());
-        // Crear base de datos
-        String sql = sqlService.generarCreateDbSql(request.getBaseDatos());
-        sqlService.ejecutarSql(null, sql);
-    }
-    
-    /**
-     * Crea la base de datos si no existe.
-     *
-     * @param request Datos de la petición
-     * @throws SQLException
-     */
-    private void crearBaseDatos(ApiRequest request) throws SQLException {
-        // Validaciones
-        validador.validarNombre(request.getBaseDatos());
-        // Crear base de datos
-        String sql = sqlService.generarCreateDbSql(request.getBaseDatos());
-        sqlService.ejecutarSql(null, sql);
     }
 
     /*
@@ -118,7 +85,10 @@ public class MetaController {
         for (TablaConfig t : request.getTabla()) {
             // Limpieza y validación
             validador.validarNombre(t.getNombreLogico());
-            t.setNombreDb(request.getBaseDatos());
+            t.setModuloId(request.getModuloId());
+
+            // Obtener nombre de la base de datos
+            String nombreDb = AppConfig.DB_CLIENTE;
 
             // Obtener las relaciones de la tabla
             List<RelacionConfig> relacionesTabla = t.getRelaciones() != null
@@ -127,7 +97,7 @@ public class MetaController {
 
             // Crear tabla
             String sql = sqlService.generarCreateSql(t, relacionesTabla);
-            sqlService.ejecutarSql(request.getBaseDatos(), sql);
+            sqlService.ejecutarSql(nombreDb, sql);
 
             // Persistencia de metadatos
             metaService.guardarConfiguracion(t);
@@ -137,28 +107,18 @@ public class MetaController {
     }
 
     /**
-     * Obtener nombre de todas las tablas de una base de datos GET
+     * Obtener nombre de todas las tablas de un módulo
      *
      * @param ctx Contexto de la petición HTTP
      */
     public void listarTablas(Context ctx) {
         // Obtener nombre de la base de datos de la URL
-        String db = ctx.queryParam("db");
-        if (db == null || db.isEmpty()) {
-            throw new ValidacionException("El parámetro 'db' (base de datos) es obligatorio.");
-        }
+        Long moduloId = ctx.queryParamAsClass("modulo", Long.class)
+                .check(id -> id != null && id > 0, "El parámetro 'modulo' es obligatorio y debe ser mayor a 0.")
+                .get();
+
         // Devolver la lista de nombres de las tablas
-        ctx.json(ApiRespuesta.ok(metaService.listarTablas(db)));
-    }
-    
-        /**
-     * Obtener nombre de todas las tablas de una base de datos GET
-     *
-     * @param ctx Contexto de la petición HTTP
-     */
-    public void listarBasesDatos(Context ctx) {
-        // Devolver la lista de nombres de las bases de datos
-        ctx.json(ApiRespuesta.ok(metaService.listarBasesDatos()));
+        ctx.json(ApiRespuesta.ok(metaService.listarTablas(moduloId)));
     }
 
     /**
@@ -201,7 +161,7 @@ public class MetaController {
             ctx.status(500).json(ApiRespuesta.error("Error en la base de datos al agregar la columna: " + e.getMessage()));
         }
     }
-    
+
     public void eliminarColumna(Context ctx) {
         try {
             String nombreTabla = ctx.pathParam("tabla");
@@ -215,7 +175,7 @@ public class MetaController {
             ctx.status(500).json(ApiRespuesta.error("Error en la base de datos al agregar la columna: " + e.getMessage()));
         }
     }
-    
+
     public void modificarColumna(Context ctx) {
         try {
             String nombreTabla = ctx.pathParam("tabla");
@@ -234,7 +194,7 @@ public class MetaController {
             ctx.status(400).json(ApiRespuesta.error(e.getMessage()));
         }
     }
-    
+
     /**
      * Renombra una columna existente
      *

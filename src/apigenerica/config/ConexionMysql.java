@@ -109,10 +109,11 @@ public class ConexionMysql {
             stmt.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS `erp_meta_tablas` (" +
                 "  `id` INT AUTO_INCREMENT PRIMARY KEY," +
-                "  `nombre_db` VARCHAR(100) NOT NULL," +
+                "  `modulo_id` INT NOT NULL," +
                 "  `nombre_logico` VARCHAR(100) NOT NULL," +
                 "  `nombre_amigable` VARCHAR(200)," +
                 "  UNIQUE KEY `uk_tabla` (`nombre_db`, `nombre_logico`)" +
+                "  FOREIGN KEY (`modulo_id`) REFERENCES `erp_modulos`(`id`) ON DELETE CASCADE" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
 
@@ -123,7 +124,6 @@ public class ConexionMysql {
                 "  `tabla_id` INT NOT NULL," +
                 "  `nombre` VARCHAR(100) NOT NULL," +
                 "  `tipo` VARCHAR(50) NOT NULL," +
-                "  `longitud` INT NOT NULL," +
                 "  `nullable` TINYINT(1) DEFAULT 1," +
                 "  `es_contrasena` TINYINT(1) DEFAULT 0," +
                 "  `es_visible` TINYINT(1) DEFAULT 1," +
