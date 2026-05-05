@@ -121,9 +121,8 @@ public class ConexionMysql {
                 "CREATE TABLE IF NOT EXISTS `erp_meta_tablas` (" +
                 "  `id` INT AUTO_INCREMENT PRIMARY KEY," +
                 "  `modulo_id` INT NOT NULL," +
-                "  `nombre_logico` VARCHAR(100) NOT NULL," +
+                "  `nombre_logico` VARCHAR(100) NOT NULL UNIQUE," +
                 "  `nombre_amigable` VARCHAR(200)," +
-                "  UNIQUE KEY `uk_tabla` (`nombre_db`, `nombre_logico`)" +
                 "  FOREIGN KEY (`modulo_id`) REFERENCES `erp_modulos`(`id`) ON DELETE CASCADE" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
