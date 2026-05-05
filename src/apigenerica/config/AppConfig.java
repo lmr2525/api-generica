@@ -6,9 +6,9 @@ package apigenerica.config;
 
 /**
  *
- * @author moni_
+ * @author Grupo1
  */
 public class AppConfig {
     // Esta variable se llena al iniciar la API (desde un .env, properties o el instalador)
-    public static String DB_CLIENTE; 
+    public static String DB_CLIENTE = "prueba"; 
 }

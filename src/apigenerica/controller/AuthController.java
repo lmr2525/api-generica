@@ -49,7 +49,7 @@ public class AuthController {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     // Obtener hash de la contraseña de la base de datos
-                    String hashGuardado = rs.getString("Contrasena");
+                    String hashGuardado = rs.getString("contrasena");
                     // Comparar hash de la contraseña introducida con el de la base de datos
                     if (BCrypt.checkpw(password, hashGuardado)) {
                         // Contraseña correcta: Extraer los datos necesarios

@@ -59,7 +59,7 @@ public class ApiGenerica {
         app.before(ctx -> {
         String path = ctx.path();
 
-        if (path.equals("api/auth") || path.startsWith("api/store")) {
+        if (path.startsWith("api/auth") || path.startsWith("api/store")) {
             return; // No pedir token aquí
         }
 
