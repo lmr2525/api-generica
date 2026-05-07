@@ -18,7 +18,7 @@ public class ConexionMysql {
     private static HikariDataSource ds;
     private static final String URL = "jdbc:mysql://localhost:3306";
     private static final String USUARIO = "root";
-    private static final String PWD = "root";
+    private static final String PWD = "";
 
     /**
      * Inicializa el pool de conexiones y crea las tablas de metadatos
@@ -137,6 +137,8 @@ public class ConexionMysql {
                 "  `nullable` TINYINT(1) DEFAULT 1," +
                 "  `es_contrasena` TINYINT(1) DEFAULT 0," +
                 "  `es_visible` TINYINT(1) DEFAULT 1," +
+                "  `es_sensible` TINYINT(1) DEFAULT 0," +
+                "  `es_archivo` TINYINT(1) DEFAULT 0," +
                 "  `autoincremental` TINYINT(1) DEFAULT 0," +
                 "  `unico` TINYINT(1) DEFAULT 0," +
                 "  `valor_defecto` VARCHAR(255)," +

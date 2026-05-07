@@ -13,12 +13,15 @@ public class ColumnaConfig {
     String nombre;
     String tipo;
     boolean nullable = true;
-    boolean contrasena = false;
+    boolean contrasena = false; // Hashear antes de insertar en MySQL
     boolean visible = true; // Para el DTO
+    boolean sensible = false; // Enviar dato a Paradox
+    boolean archivo = false; // Enviar dato a db4o
     boolean autoincremental;
     boolean unico;
     Object valorDefecto;
 
+    // Getters y setters
     public Long getId() {
         return id;
     }
@@ -65,6 +68,22 @@ public class ColumnaConfig {
 
     public void setVisible(boolean visible) {
         this.visible = visible;
+    }
+
+    public boolean isSensible() {
+        return sensible;
+    }
+
+    public void setSensible(boolean sensible) {
+        this.sensible = sensible;
+    }
+
+    public boolean isArchivo() {
+        return archivo;
+    }
+
+    public void setArchivo(boolean archivo) {
+        this.archivo = archivo;
     }
 
     public boolean isAutoincremental() {

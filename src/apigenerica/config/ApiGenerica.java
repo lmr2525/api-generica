@@ -12,6 +12,7 @@ import apigenerica.excepciones.NoAutorizadoException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ApiRespuesta;
+import apigenerica.dao.UsuarioDao;
 import apigenerica.service.JwtService;
 import apigenerica.service.MetaService;
 import apigenerica.service.OrderService;
@@ -39,11 +40,12 @@ public class ApiGenerica {
         MetaService metaService = new MetaService(metaDao, validador, sqlService);
         OrderService orderService = new OrderService(metaDao);
         JwtService jwtService = new JwtService();
+        UsuarioDao authService = new UsuarioDao();
         
         // ── Instanciar controladores ─────────────────────────────────
         BaseDao baseDao = new BaseDao();
         BaseController baseCtrl = new BaseController(validador, metaService, baseDao, orderService);
-        AuthController authCtrl = new AuthController(jwtService);
+        AuthController authCtrl = new AuthController(jwtService, authService);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
         MetaController metaCtrl = new MetaController(metaService, validador, orderService, sqlService);
@@ -102,6 +104,7 @@ public class ApiGenerica {
         
         // ── Endpoints de autenticación ───────────────────────────────
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
+        app.post("/api/auth/refresh", ctx -> authCtrl.refresh(ctx));
 
         // ── Endpoints de configuración ERP ───────────────────────────
         app.get("/api/erp/config", ctx -> configCtrl.getConfig(ctx));

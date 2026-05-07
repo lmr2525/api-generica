@@ -1,5 +1,6 @@
 package apigenerica.dao;
 
+import apigenerica.config.AppConfig;
 import apigenerica.config.ConexionMysql;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.model.ColumnaConfig;
@@ -30,13 +31,14 @@ public class MetaDao {
 
         String sqlTabla = "INSERT INTO `erp_meta_tablas` (modulo_id, nombre_logico, nombre_amigable) VALUES (?, ?, ?)";
         String sqlColumna = "INSERT INTO `erp_meta_columnas` "
-                + "(tabla_id, nombre, tipo, nullable, es_contrasena, visible, autoincremental, unico, valor_defecto) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "(tabla_id, nombre, tipo, nullable, es_contrasena, es_visible, es_sensible, es_archivo, "
+                + "autoincremental, unico, valor_defecto) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         String sqlRelacion = "INSERT INTO `erp_meta_relaciones` "
                 + "(nombre, tabla_origen, fk_columna, tabla_destino, cardinalidad) "
                 + "VALUES (?, ?, ?, ?, ?)";
 
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema")) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA)) {
             try {
                 conn.setAutoCommit(false); // Comenzar transacción
                 long tablaId = 0;
@@ -65,14 +67,16 @@ public class MetaDao {
                             stmtCol.setBoolean(4, col.isNullable());
                             stmtCol.setBoolean(5, col.isContrasena());
                             stmtCol.setBoolean(6, col.isVisible());
-                            stmtCol.setBoolean(7, col.isAutoincremental());
-                            stmtCol.setBoolean(8, col.isUnico());
+                            stmtCol.setBoolean(7, col.isSensible());
+                            stmtCol.setBoolean(8, col.isArchivo());
+                            stmtCol.setBoolean(9, col.isAutoincremental());
+                            stmtCol.setBoolean(10, col.isUnico());
 
                             // Manejo de valor_defecto (String)
                             if (col.getValorDefecto() != null) {
-                                stmtCol.setString(9, col.getValorDefecto().toString());
+                                stmtCol.setString(11, col.getValorDefecto().toString());
                             } else {
-                                stmtCol.setNull(9, Types.VARCHAR);
+                                stmtCol.setNull(11, Types.VARCHAR);
                             }
                             stmtCol.addBatch();
                         }
@@ -114,7 +118,7 @@ public class MetaDao {
     public TablaConfig getConfiguracion(String nombreLogico) {
         String sqlTabla = "SELECT * FROM `erp_meta_tablas` WHERE nombre_logico = ?";
 
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmtTabla = conn.prepareStatement(sqlTabla)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmtTabla = conn.prepareStatement(sqlTabla)) {
             stmtTabla.setString(1, nombreLogico);
 
             try (ResultSet rsTabla = stmtTabla.executeQuery()) {
@@ -159,6 +163,8 @@ public class MetaDao {
                     col.setNullable(rs.getBoolean("nullable"));
                     col.setContrasena(rs.getBoolean("es_contrasena"));
                     col.setVisible(rs.getBoolean("es_visible"));
+                    col.setSensible(rs.getBoolean("es_sensible"));
+                    col.setArchivo(rs.getBoolean("es_archivo"));
                     col.setAutoincremental(rs.getBoolean("autoincremental"));
                     col.setUnico(rs.getBoolean("unico"));
                     col.setValorDefecto(rs.getString("valor_defecto"));
@@ -215,7 +221,7 @@ public class MetaDao {
                 + "JOIN erp_meta_tablas t ON r.tabla_origen = t.id "
                 + "WHERE r.tabla_destino = ?";
 
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, nombreTablaDestino);
 
             try (ResultSet rs = stmt.executeQuery()) {
@@ -253,7 +259,7 @@ public class MetaDao {
      */
     public void eliminarConfiguracion(String nombreLogico) {
         String sql = "DELETE FROM `erp_meta_tablas` WHERE nombre_logico = ?";
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, nombreLogico);
             stmt.executeUpdate();
         } catch (SQLException e) {
@@ -270,7 +276,7 @@ public class MetaDao {
         List<TablaConfig> tablas = new ArrayList<>();
         String sqlTabla = "SELECT * FROM `erp_meta_tablas`";
 
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmtTabla = conn.prepareStatement(sqlTabla); ResultSet rsTabla = stmtTabla.executeQuery()) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmtTabla = conn.prepareStatement(sqlTabla); ResultSet rsTabla = stmtTabla.executeQuery()) {
             while (rsTabla.next()) {
                 TablaConfig tabla = new TablaConfig();
                 tabla.setId(rsTabla.getLong("id"));
@@ -298,7 +304,7 @@ public class MetaDao {
         List<TablaConfig> tablas = new ArrayList<>();
         String sql = "SELECT nombre_logico, nombre_amigable FROM erp_meta_tablas WHERE modulo_id = ?";
 
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, moduloId);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
@@ -323,7 +329,7 @@ public class MetaDao {
         List<TablaConfig> tablas = new ArrayList<>();
         String sql = "SELECT nombre_logico, nombre_amigable FROM erp_meta_tablas WHERE modulo_id IS NULL";
 
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery();) { 
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery()) { 
             while (rs.next()) {
                 TablaConfig t = new TablaConfig();
                 t.setNombreLogico(rs.getString("nombre_logico"));

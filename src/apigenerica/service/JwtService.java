@@ -19,12 +19,22 @@ public class JwtService {
 
     private static final Algorithm algorithm = Algorithm.HMAC256(AppConfig.getSecretKey());
 
-    public String generarToken(Long usuarioId, String rol) {
+    public String generarAccessToken(Long usuarioId, String rol) {
         return JWT.create()
                 .withIssuer("tu_empresa_erp")
                 .withClaim("id", usuarioId)
                 .withClaim("rol", rol)
-                .withExpiresAt(new Date(System.currentTimeMillis() + 3600 * 1000)) // Caduca en 1 hora
+                .withClaim("tipo", "access")
+                .withExpiresAt(new Date(System.currentTimeMillis() + 15 * 60 * 1000)) // Caduca en 15 minutos
+                .sign(algorithm);
+    }
+    
+        public String generarRefreshToken(Long usuarioId) {
+        return JWT.create()
+                .withIssuer("tu_empresa_erp")
+                .withClaim("id", usuarioId)
+                .withClaim("tipo", "refresh")
+                .withExpiresAt(new Date(System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000)) // Caduca en 7 días
                 .sign(algorithm);
     }
 
