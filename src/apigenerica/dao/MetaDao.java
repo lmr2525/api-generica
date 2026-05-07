@@ -298,9 +298,9 @@ public class MetaDao {
         List<TablaConfig> tablas = new ArrayList<>();
         String sql = "SELECT nombre_logico, nombre_amigable FROM erp_meta_tablas WHERE modulo_id = ?";
 
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, moduloId);
-            ResultSet rs = ps.executeQuery();
+        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, moduloId);
+            ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 TablaConfig t = new TablaConfig();
                 t.setNombreLogico(rs.getString("nombre_logico"));
@@ -309,6 +309,29 @@ public class MetaDao {
             }
         } catch (SQLException e) {
             throw new BaseDatosException("Error al listar las tablas del módulo especificado.", e);
+        }
+        return tablas;
+    }
+    
+    /**
+     * Obtener los nombres de las tablas (lógico y amigable) sin
+     * asignar a un módulo
+     *
+     * @return Lista de metadatos de las tablas
+     */
+    public List<TablaConfig> listarTablasSinModulo() {
+        List<TablaConfig> tablas = new ArrayList<>();
+        String sql = "SELECT nombre_logico, nombre_amigable FROM erp_meta_tablas WHERE modulo_id IS NULL";
+
+        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery();) { 
+            while (rs.next()) {
+                TablaConfig t = new TablaConfig();
+                t.setNombreLogico(rs.getString("nombre_logico"));
+                t.setNombreAmigable(rs.getString("nombre_amigable"));
+                tablas.add(t);
+            }
+        } catch (SQLException e) {
+            throw new BaseDatosException("Error al listar las tablas.", e);
         }
         return tablas;
     }

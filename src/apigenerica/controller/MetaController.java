@@ -112,13 +112,17 @@ public class MetaController {
      * @param ctx Contexto de la petición HTTP
      */
     public void listarTablas(Context ctx) {
-        // Obtener nombre de la base de datos de la URL
+        // Obtener nombre del módulo de la URL
         Long moduloId = ctx.queryParamAsClass("modulo", Long.class)
-                .check(id -> id != null && id > 0, "El parámetro 'modulo' es obligatorio y debe ser mayor a 0.")
+                .check(id -> id > 0, "El parámetro 'modulo' debe ser mayor a 0.")
+                .allowNullable()
                 .get();
+        // Obtener boolean de la URL 
+        Boolean sinModulo = ctx.queryParamAsClass("sinModulo", Boolean.class)
+                .allowNullable().get();
 
         // Devolver la lista de nombres de las tablas
-        ctx.json(ApiRespuesta.ok(metaService.listarTablas(moduloId)));
+        ctx.status(HttpCode.OK).json(ApiRespuesta.ok(metaService.listarTablas(moduloId, sinModulo)));
     }
 
     /**

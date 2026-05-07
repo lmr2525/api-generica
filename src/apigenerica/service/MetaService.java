@@ -174,12 +174,21 @@ public class MetaService {
     /**
      * Devuelve la lista de todas las tablas registradas para una base de datos.
      *
-     * @param moduloId
+     * @param moduloId Id del módulo cuyas tablas se quieren mostrar
+     * @param sinModulo 
      * @return Lista de metadatos de tablas
      */
-        public List<TablaConfig> listarTablas(Long moduloId) {
-        // Obtener nombres lógicos y amigables
-        return metaDao.listarTablasPorModulo(moduloId);
+    public List<TablaConfig> listarTablas(Long moduloId, Boolean sinModulo) {
+        // Tablas sin módulo
+        if (Boolean.TRUE.equals(sinModulo)) {
+            return metaDao.listarTablasSinModulo();
+        }
+        // Tablas de un módulo específico
+        if (moduloId != null) {
+            return metaDao.listarTablasPorModulo(moduloId);
+        }
+        // Todas las tablas
+        return metaDao.getTodas();
     }
 
     /**

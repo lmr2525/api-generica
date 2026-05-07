@@ -4,6 +4,7 @@
  */
 package apigenerica.service;
 
+import apigenerica.config.AppConfig;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
@@ -16,9 +17,7 @@ import java.util.Date;
  */
 public class JwtService {
 
-    //private static final String SECRET_KEY = System.getenv("SECRET_KEY");
-    private static final String SECRET_KEY = "clave_secreta_de_prueba"; // Firma y verifica los tokens
-    private static final Algorithm algorithm = Algorithm.HMAC256(SECRET_KEY);
+    private static final Algorithm algorithm = Algorithm.HMAC256(AppConfig.getSecretKey());
 
     public String generarToken(Long usuarioId, String rol) {
         return JWT.create()
