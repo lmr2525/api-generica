@@ -13,6 +13,7 @@ import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ApiRespuesta;
 import apigenerica.dao.UsuarioDao;
+import apigenerica.service.FicheroService;
 import apigenerica.service.JwtService;
 import apigenerica.service.MetaService;
 import apigenerica.service.OrderService;
@@ -41,10 +42,11 @@ public class ApiGenerica {
         OrderService orderService = new OrderService(metaDao);
         JwtService jwtService = new JwtService();
         UsuarioDao authService = new UsuarioDao();
+        FicheroService ficheroService = new FicheroService();
         
         // ── Instanciar controladores ─────────────────────────────────
         BaseDao baseDao = new BaseDao();
-        BaseController baseCtrl = new BaseController(validador, metaService, baseDao, orderService);
+        BaseController baseCtrl = new BaseController(validador, metaService, baseDao, orderService, ficheroService);
         AuthController authCtrl = new AuthController(jwtService, authService);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();

@@ -12,7 +12,8 @@ import java.sql.*;
 import java.util.*;
 
 /**
- * @author Grupo1 Consultas CRUD con las tablas
+ * @author Grupo1 
+ * Consultas CRUD con las tablas
  */
 public class BaseDao {
 

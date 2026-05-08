@@ -8,23 +8,23 @@ import com.db4o.Db4oEmbedded;
 import com.db4o.ObjectContainer;
 
 /**
- * @author Grupo1
+ * @author Grupo1 
  * Conexión con la base de datos db4o
  */
 public class ConexionDb4o {
-    private static ObjectContainer db;
-    private static final String RUTA = "metadatos.db4o"; // BBDD
 
-    public static void inicializar() {
+    private static ObjectContainer db;
+
+    public static void inicializar(String ruta) {
         db = Db4oEmbedded.openFile(
-            Db4oEmbedded.newConfiguration(), 
-            RUTA
+                Db4oEmbedded.newConfiguration(),
+                ruta
         );
     }
 
-    public static ObjectContainer getConexion() {
+    public static ObjectContainer getConexion(String ruta) {
         if (db == null || db.ext().isClosed()) {
-            inicializar();
+            inicializar(ruta);
         }
         return db;
     }

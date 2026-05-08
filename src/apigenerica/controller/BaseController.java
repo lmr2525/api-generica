@@ -12,11 +12,13 @@ import apigenerica.model.ColumnaConfig;
 import apigenerica.model.EntidadDinamica;
 import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
+import apigenerica.service.FicheroService;
 import apigenerica.service.MetaService;
 import apigenerica.service.OrderService;
 import apigenerica.service.ValidadorService;
 import io.javalin.http.Context;
 import io.javalin.http.HttpCode;
+import io.javalin.http.UploadedFile;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -25,6 +27,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Controlador genérico CRUD para cualquier tabla de la base de datos. Usa los
@@ -38,13 +41,15 @@ public class BaseController {
     private final MetaService metaService;
     private final BaseDao baseDao;
     private final OrderService orderService;
+    private final FicheroService ficheroService;
 
     public BaseController(ValidadorService validador, MetaService metaService,
-            BaseDao baseDao, OrderService orderService) {
+            BaseDao baseDao, OrderService orderService, FicheroService ficheroService) {
         this.validador = validador;
         this.metaService = metaService;
         this.baseDao = baseDao;
         this.orderService = orderService;
+        this.ficheroService = ficheroService;
     }
 
     /**
@@ -188,26 +193,43 @@ public class BaseController {
         String tabla = ctx.pathParam("tabla");
         validador.validarNombre(tabla);
 
-        // Convertir body del JSON en EntidadDinamica
-        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        // Obtener datos JSON
+        Map<String, Object> body = extraerDatos(ctx);
         if (body == null || body.isEmpty()) {
             throw new ValidacionException("Cuerpo vacío.");
         }
-        EntidadDinamica datos = new EntidadDinamica();
-        body.forEach(datos::set); // Mapear cada línea a EntidadDinamica
+        EntidadDinamica entidad = new EntidadDinamica();
+        body.forEach(entidad::set); // Mapear cada línea a EntidadDinamica
 
         // Buscar metadatos de la tabla de MySQL
         TablaConfig config = metaService.getConfiguracion(tabla);
         if (config.getColumnas() != null) {
-            datos = convertirTipos(datos, config.getColumnas());
+            entidad = convertirTipos(entidad, config.getColumnas());
+        }
+        
+        // Obtener fichero si existe
+        UploadedFile fichero = ctx.uploadedFile("fichero_adjunto");
+        String uuid = null;
+        if (fichero != null) {
+            // Almacenar UUID en MySQL para localizar el fichero en db4o
+            uuid = UUID.randomUUID().toString();
+            entidad.set("file_uuid", uuid);
         }
 
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
-            long id = baseDao.insertar(conn, tabla, datos);
+            long id = baseDao.insertar(conn, tabla, entidad);
+            // Si hay fichero, guardar en db4o
+            if (fichero != null) {
+                ficheroService.guardar(uuid, tabla, id, fichero);
+            }
             Map<String, Object> respuesta = new LinkedHashMap<>();
             respuesta.put("id", id);
             ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok(respuesta));
         } catch (SQLException e) {
+            // Si falla MySQL, borrar el de db4o si ya se guardó
+            if (uuid != null) {
+                ficheroService.eliminar(uuid);
+            }
             throw new BaseDatosException("Error al insertar.", e);
         }
     }
@@ -303,6 +325,25 @@ public class BaseController {
         }
     }
 
+    /**
+     * Extrae los parámetros de la petición, tanto
+     * JSON como Multipart
+     */
+    private Map<String, Object> extraerDatos(Context ctx) {
+        if (ctx.isMultipart()) { // Si tiene un archivo
+            Map<String, Object> datos = new HashMap<>();
+            // Convertir formParamMap a Map
+            ctx.formParamMap().forEach((key, value) -> {
+                if (!value.isEmpty()) {
+                    datos.put(key, value.get(0));
+                }
+            });
+            return datos;
+        } else { // Si es JSON
+            return ctx.bodyAsClass(Map.class);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void updateTransaccional(Context ctx) {
         // Convertir body del JSON en Map
@@ -361,7 +402,7 @@ public class BaseController {
 
     /**
      * Elimina los datos de una tabla
-     * 
+     *
      * @param ctx Contexto de la petición HTTP
      */
     public void delete(Context ctx) {
@@ -369,7 +410,7 @@ public class BaseController {
         String tabla = ctx.pathParam("tabla");
         Long id = ctx.pathParamAsClass("id", Long.class).get();
         validador.validarNombre(tabla);
-        
+
         // Verificar que la tabla existe
         metaService.getConfiguracion(tabla);
 
@@ -452,9 +493,10 @@ public class BaseController {
     /**
      * Aplica el filtro de privacidad a una entidad. Estos son los únicos datos
      * que se devuelven al cliente
-     * 
+     *
      * @param entidad Entidad/Registro de una tabla
-     * @param configs Metadatos de sus columnas para saber qué datos se deben ocultar
+     * @param configs Metadatos de sus columnas para saber qué datos se deben
+     * ocultar
      */
     private void aplicarFiltroPrivacidadEntidad(EntidadDinamica entidad, List<ColumnaConfig> configs) {
         if (entidad == null || configs == null) {
@@ -468,9 +510,10 @@ public class BaseController {
 
     /**
      * Aplica el filro de privacidad a una lista de entidades
-     * 
+     *
      * @param entidades Lista de entidades
-     * @param configs Metadatos de sus columnas para saber qué datos se deben ocultar
+     * @param configs Metadatos de sus columnas para saber qué datos se deben
+     * ocultar
      */
     private void aplicarFiltroPrivacidadLista(List<EntidadDinamica> entidades, List<ColumnaConfig> configs) {
         if (entidades == null) {
