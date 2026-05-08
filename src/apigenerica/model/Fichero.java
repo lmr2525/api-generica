@@ -10,7 +10,7 @@ package apigenerica.model;
  */
 public class Fichero {
 
-    private String uuid; // Se almacena en MySQL
+    private String uuid; // Identifica el fichero en MySQL
     private String tablaOrigen;
     private Long registroId;
     private String nombreFichero;

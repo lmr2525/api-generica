@@ -79,7 +79,7 @@ public class MetaController {
     *
     * @param request Datos de la petición
     * @return Número de tablas creadas
-     */
+    */
     private int procesarFormulario(ApiRequest request) throws SQLException {
         int tablasCreadas = 0;
         for (TablaConfig t : request.getTabla()) {
@@ -166,6 +166,11 @@ public class MetaController {
         }
     }
 
+    /**
+     * Eliminar columna de una tabla
+     * 
+     * @param ctx 
+     */
     public void eliminarColumna(Context ctx) {
         try {
             String nombreTabla = ctx.pathParam("tabla");
@@ -180,6 +185,11 @@ public class MetaController {
         }
     }
 
+    /**
+     * Modificar columna de una tabla
+     * 
+     * @param ctx 
+     */
     public void modificarColumna(Context ctx) {
         try {
             String nombreTabla = ctx.pathParam("tabla");

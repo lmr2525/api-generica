@@ -1,18 +1,15 @@
 package apigenerica.controller;
 
-import apigenerica.config.ConexionMysql;
 import apigenerica.model.ApiRespuesta;
 import apigenerica.dao.UsuarioDao;
+import apigenerica.excepciones.BaseDatosException;
+import apigenerica.model.EntidadDinamica;
 import apigenerica.service.JwtService;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.http.Context;
 import io.javalin.http.HttpCode;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import org.mindrot.jbcrypt.BCrypt;
@@ -33,7 +30,7 @@ public class AuthController {
     }
 
     /**
-     * Verifica las body de un empleado.
+     * Inicia sesión y genera JWT Access y Refresh
      *
      * @param ctx Contexto de la petición HTTP
      */
@@ -48,40 +45,19 @@ public class AuthController {
             return;
         }
 
-        String hashGuardado = usuarioDao.obtenerHash();
-        String sql = "SELECT id, contrasena, rol FROM `erp_users` WHERE `email` = ? AND `activo` = 1";
+        EntidadDinamica login = usuarioDao.obtenerDatosLogin(email);
 
-        try (Connection conn = ConexionMysql.getConexion("erp_sistema"); PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, email);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    // Obtener hash de la contraseña de la base de datos
-                    String hashGuardado = rs.getString("contrasena");
-                    // Comparar hash de la contraseña introducida con el de la base de datos
-                    if (BCrypt.checkpw(password, hashGuardado)) {
-                        // Contraseña correcta: Extraer los datos necesarios
-                        Long usuarioId = rs.getLong("id");
-                        String rol = rs.getString("rol");
-                        // Generar JWT
-                        String accessToken = jwtService.generarAccessToken(usuarioId, rol);
-                        String refreshToken = jwtService.generarRefreshToken(usuarioId);
-                        Map<String, String> respuesta = new HashMap<>();
-                        respuesta.put("access_token", accessToken);
-                        respuesta.put("refresh_token", refreshToken);
-                        ctx.status(HttpCode.OK).json(ApiRespuesta.ok(respuesta));
-                    } else {
-                        // Contraseña incorrecta
-                        ctx.status(HttpCode.UNAUTHORIZED).json(ApiRespuesta.error("Credenciales incorrectas."));
-                    }
-                } else {
-                    // Si el usuario (email) no se encuentra en la base de datos
-                    ctx.status(HttpCode.UNAUTHORIZED).json(ApiRespuesta.error("Credenciales incorrectas."));
-                }
-            }
-        } catch (SQLException e) {
-            // Si la tabla no existe (no instalado)
-            System.err.println("Error login: " + e.getMessage());
-            ctx.status(HttpCode.INTERNAL_SERVER_ERROR).json(ApiRespuesta.error("Error interno al autenticar."));
+        // Comparar hash de la contraseña introducida con el de la base de datos
+        if (login != null && BCrypt.checkpw(password, (String) login.get("hash"))) {
+            // Contraseña correcta: Extraer los datos necesarios
+            Long usuarioId = login.getId();
+            String rol = (String) login.get("rol");
+            // Generar JWT
+            Map<String, String> respuesta = jwtService.insertarTokensRespuesta(usuarioId, rol);
+            ctx.status(HttpCode.OK).json(ApiRespuesta.ok(respuesta));
+        } else {
+            // Contraseña incorrecta o no se encontró el email en la base de datos
+            ctx.status(HttpCode.UNAUTHORIZED).json(ApiRespuesta.error("Credenciales incorrectas."));
         }
     }
 
@@ -129,5 +105,17 @@ public class AuthController {
         } catch (JWTVerificationException e) {
             ctx.status(401).json(ApiRespuesta.error("Refresh token expirado o inválido."));
         }
+    }
+    
+    /**
+     * Registrar cuenta de usuario en la base de datos
+     * 
+     * @param ctx 
+     */
+    public void registrar(Context ctx) {
+        Map<String, String> datosUsuario = ctx.bodyAsClass(Map.class);
+        String email = datosUsuario.get("email");
+        String password = datosUsuario.get("password");
+        String rol = datosUsuario.get("rol");
     }
 }
