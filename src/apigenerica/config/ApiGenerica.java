@@ -36,17 +36,17 @@ public class ApiGenerica {
 
         // ── Instanciar servicios (inyección de dependencias manual) ───
         MetaDao metaDao = new MetaDao();
+        BaseDao baseDao = new BaseDao();
         ValidadorService validador = new ValidadorService(metaDao);
         SqlService sqlService = new SqlService(validador);
-                FicheroService ficheroService = new FicheroService();
+        FicheroService ficheroService = new FicheroService();
         MetaService metaService = new MetaService(metaDao, validador, sqlService, ficheroService);
         OrderService orderService = new OrderService(metaDao);
         JwtService jwtService = new JwtService();
         UsuarioDao authService = new UsuarioDao();
         
         // ── Instanciar controladores ─────────────────────────────────
-        BaseDao baseDao = new BaseDao();
-        BaseController baseCtrl = new BaseController(validador, metaService, baseDao, orderService, ficheroService);
+        BaseController baseCtrl = new BaseController(validador, metaService, baseDao, metaDao, orderService, ficheroService);
         AuthController authCtrl = new AuthController(jwtService, authService);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();

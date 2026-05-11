@@ -391,7 +391,7 @@ public class MetaDao {
      * @param nombreLogico Nombre de la tabla en MySQL
      * @return Lista de metadatos de la columna
      */
-    private List<ColumnaConfig> obtenerColumnasArchivo(String nombreLogico) {
+    public List<ColumnaConfig> obtenerColumnasArchivo(String nombreLogico) {
         TablaConfig config = getConfiguracion(nombreLogico);
         if (config == null || config.getColumnas() == null) {
             return Collections.emptyList();

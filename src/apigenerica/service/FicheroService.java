@@ -12,6 +12,7 @@ import io.javalin.http.UploadedFile;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 
 /**
  *
@@ -23,17 +24,17 @@ public class FicheroService {
     private final ObjectContainer db = ConexionDb4o.getConexion(RUTA);
 
     public void guardar(String uuid, String tabla, Long id, UploadedFile file) {
-        try (InputStream is = file.getContent()){
+        try (InputStream is = file.getContent()) {
             // Obtener todos los bytes del archivo
             byte[] bytes = inputStreamToByteArray(is);
-            
+
             Fichero obj = new Fichero(
                     uuid,
-                    tabla,
-                    id,
                     file.getFilename(),
                     file.getContentType(),
-                    bytes
+                    file.getSize(),
+                    bytes,
+                    LocalDateTime.now()
             );
             db.store(obj);
             db.commit();
@@ -41,13 +42,13 @@ public class FicheroService {
             throw new RuntimeException("Error al leer los bytes del fichero", e);
         }
     }
-    
+
     /**
      * Leer bytes
-     * 
+     *
      * @param is
      * @return
-     * @throws IOException 
+     * @throws IOException
      */
     private byte[] inputStreamToByteArray(InputStream is) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -60,6 +61,11 @@ public class FicheroService {
         return buffer.toByteArray();
     }
 
+    /**
+     * Eliminar un fichero de db4o
+     *
+     * @param uuid UUID del archivo
+     */
     public void eliminar(String uuid) {
         ObjectSet<Fichero> result = db.queryByExample(new Fichero(uuid));
         if (result.hasNext()) {
@@ -68,7 +74,12 @@ public class FicheroService {
         }
     }
 
-    // Método para el endpoint de descarga
+    /**
+     * Recuperar el archivo de db4o
+     *
+     * @param uuid UUID del archivo
+     * @return Objeto Fichero
+     */
     public Fichero obtener(String uuid) {
         ObjectSet<Fichero> result = db.queryByExample(new Fichero(uuid));
         return result.hasNext() ? result.next() : null;

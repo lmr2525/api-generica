@@ -4,6 +4,8 @@
  */
 package apigenerica.model;
 
+import java.time.LocalDateTime;
+
 /**
  *
  * @author Grupo1
@@ -11,19 +13,31 @@ package apigenerica.model;
 public class Fichero {
 
     private String uuid; // Identifica el fichero en MySQL
-    private String tablaOrigen;
-    private Long registroId;
     private String nombreFichero;
     private String mimeType;
+    private long tamano;
     private byte[] contenido;
+    private String ruta; // Si el archivo excede de los 10MB, se guarda en el disco duro
+    private LocalDateTime fechaSubida;
 
-    public Fichero(String uuid, String tablaOrigen, Long registroId, String nombreFichero, String mimeType, byte[] contenido) {
+    public Fichero(String uuid, String nombreFichero, String mimeType, long tamano, 
+            byte[] contenido, LocalDateTime fechaSubida) {
         this.uuid = uuid;
-        this.tablaOrigen = tablaOrigen;
-        this.registroId = registroId;
         this.nombreFichero = nombreFichero;
+        this.tamano = tamano;
         this.mimeType = mimeType;
         this.contenido = contenido;
+        this.fechaSubida = fechaSubida;
+    }
+    
+    public Fichero(String uuid, String nombreFichero, String mimeType, long tamano, 
+            String ruta, LocalDateTime fechaSubida) {
+        this.uuid = uuid;
+        this.nombreFichero = nombreFichero;
+        this.tamano = tamano;
+        this.mimeType = mimeType;
+        this.ruta = ruta;
+        this.fechaSubida = fechaSubida;
     }
 
     // Constructor para búsquedas (Query by Example)
@@ -38,22 +52,6 @@ public class Fichero {
 
     public void setUuid(String uuid) {
         this.uuid = uuid;
-    }
-
-    public String getTablaOrigen() {
-        return tablaOrigen;
-    }
-
-    public void setTablaOrigen(String tablaOrigen) {
-        this.tablaOrigen = tablaOrigen;
-    }
-
-    public Long getRegistroId() {
-        return registroId;
-    }
-
-    public void setRegistroId(Long registroId) {
-        this.registroId = registroId;
     }
 
     public String getNombreFichero() {
@@ -78,5 +76,21 @@ public class Fichero {
 
     public void setContenido(byte[] contenido) {
         this.contenido = contenido;
+    }
+
+    public long getTamano() {
+        return tamano;
+    }
+
+    public void setTamano(long tamano) {
+        this.tamano = tamano;
+    }
+
+    public LocalDateTime getFechaSubida() {
+        return fechaSubida;
+    }
+
+    public void setFechaSubida(LocalDateTime fechaSubida) {
+        this.fechaSubida = fechaSubida;
     }
 }

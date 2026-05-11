@@ -4,12 +4,14 @@ import apigenerica.TipoDatoMapper;
 import apigenerica.config.AppConfig;
 import apigenerica.config.ConexionMysql;
 import apigenerica.dao.BaseDao;
+import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ApiRespuesta;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.EntidadDinamica;
+import apigenerica.model.Fichero;
 import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
 import apigenerica.service.FicheroService;
@@ -40,14 +42,17 @@ public class BaseController {
     private final ValidadorService validador;
     private final MetaService metaService;
     private final BaseDao baseDao;
+    private final MetaDao metaDao;
     private final OrderService orderService;
     private final FicheroService ficheroService;
 
     public BaseController(ValidadorService validador, MetaService metaService,
-            BaseDao baseDao, OrderService orderService, FicheroService ficheroService) {
+            BaseDao baseDao, MetaDao metaDao, OrderService orderService, 
+            FicheroService ficheroService) {
         this.validador = validador;
         this.metaService = metaService;
         this.baseDao = baseDao;
+        this.metaDao = metaDao;
         this.orderService = orderService;
         this.ficheroService = ficheroService;
     }
@@ -207,27 +212,36 @@ public class BaseController {
             entidad = convertirTipos(entidad, config.getColumnas());
         }
         
-        // Obtener fichero si existe
-        UploadedFile fichero = ctx.uploadedFile("fichero_adjunto");
-        String uuid = null;
-        if (fichero != null) {
-            // Almacenar UUID en MySQL para localizar el fichero en db4o
-            uuid = UUID.randomUUID().toString();
-            entidad.set("file_uuid", uuid);
+        List<String> uuids = new ArrayList<>(); 
+        // Obtener columnas fichero
+        List<ColumnaConfig> colsFichero = metaDao.obtenerColumnasArchivo(tabla);
+        for (ColumnaConfig col : colsFichero) {
+            // Obtener fichero de la petición si lo hay
+            UploadedFile fichero = ctx.uploadedFile(col.getNombre());
+            if (fichero != null) {
+                // Almacenar UUID en MySQL para localizar el fichero en db4o
+                String uuid = UUID.randomUUID().toString();
+                entidad.set(col.getNombre(), uuid);
+                uuids.add(uuid);
+            }
         }
 
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             long id = baseDao.insertar(conn, tabla, entidad);
             // Si hay fichero, guardar en db4o
-            if (fichero != null) {
-                ficheroService.guardar(uuid, tabla, id, fichero);
+            for (ColumnaConfig col : colsFichero) {
+                UploadedFile file = ctx.uploadedFile(col.getNombre());
+                if (file != null) {
+                    String uuidAsignado = (String) entidad.getTodo().get(col.getNombre());
+                    ficheroService.guardar(uuidAsignado, tabla, id, file);
+                }
             }
             Map<String, Object> respuesta = new LinkedHashMap<>();
             respuesta.put("id", id);
             ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok(respuesta));
         } catch (SQLException e) {
             // Si falla MySQL, borrar el de db4o si ya se guardó
-            if (uuid != null) {
+            for (String uuid : uuids) {
                 ficheroService.eliminar(uuid);
             }
             throw new BaseDatosException("Error al insertar.", e);
@@ -325,25 +339,6 @@ public class BaseController {
         }
     }
 
-    /**
-     * Extrae los parámetros de la petición, tanto
-     * JSON como Multipart
-     */
-    private Map<String, Object> extraerDatos(Context ctx) {
-        if (ctx.isMultipart()) { // Si tiene un archivo
-            Map<String, Object> datos = new HashMap<>();
-            // Convertir formParamMap a Map
-            ctx.formParamMap().forEach((key, value) -> {
-                if (!value.isEmpty()) {
-                    datos.put(key, value.get(0));
-                }
-            });
-            return datos;
-        } else { // Si es JSON
-            return ctx.bodyAsClass(Map.class);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     public void updateTransaccional(Context ctx) {
         // Convertir body del JSON en Map
@@ -397,6 +392,25 @@ public class BaseController {
             }
         } catch (SQLException e) {
             throw new BaseDatosException("Error de conexión.", e);
+        }
+    }
+    
+    /**
+     * Extrae los parámetros de la petición, tanto
+     * JSON como Multipart
+     */
+    private Map<String, Object> extraerDatos(Context ctx) {
+        if (ctx.isMultipart()) { // Si tiene un archivo
+            Map<String, Object> datos = new HashMap<>();
+            // Convertir formParamMap a Map
+            ctx.formParamMap().forEach((key, value) -> {
+                if (!value.isEmpty()) {
+                    datos.put(key, value.get(0));
+                }
+            });
+            return datos;
+        } else { // Si es JSON
+            return ctx.bodyAsClass(Map.class);
         }
     }
 
@@ -520,5 +534,20 @@ public class BaseController {
             return;
         }
         entidades.forEach(e -> aplicarFiltroPrivacidadEntidad(e, configs));
+    }
+    
+    public void descargarFichero(Context ctx) {
+        String uuid = ctx.pathParam("uuid");
+
+        Fichero fichero = ficheroService.obtener(uuid);
+
+        if (fichero == null) {
+            throw new RecursoNoEncontradoException("El archivo no existe.");
+        }
+
+        // Configurar respuesta para el navegador
+        ctx.contentType(fichero.getMimeType());
+        ctx.header("Content-Disposition", "attachment; filename=\"" + fichero.getNombreFichero() + "\"");
+        ctx.result(fichero.getContenido()); // El stream de bytes
     }
 }
