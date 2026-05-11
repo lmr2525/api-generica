@@ -106,13 +106,18 @@ public class MetaController {
         return tablasCreadas;
     }
 
+    /**
+     * Elimina una tabla de la base de datos del cliente
+     * 
+     * @param ctx Contexto de la petición HTTP 
+     */
     public void eliminarTabla(Context ctx) {
         try {
             String nombreTabla = ctx.pathParam("tabla");
             metaService.eliminarTabla(nombreTabla);
-            ctx.status(200).json(ApiRespuesta.ok("Tabla eliminada correctamente."));
+            ctx.status(HttpCode.NO_CONTENT).json(ApiRespuesta.ok("Tabla eliminada correctamente."));
         } catch (SQLException e) {
-            ctx.status(500).json(ApiRespuesta.error("Error en la base de datos al eliminar la tabla"));
+            ctx.status(HttpCode.INTERNAL_SERVER_ERROR).json(ApiRespuesta.error("Error en la base de datos al eliminar la tabla"));
         }
     }
     

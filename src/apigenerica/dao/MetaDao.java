@@ -9,7 +9,9 @@ import apigenerica.model.TablaConfig;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Operaciones CRUD para las tablas de metadatos almacenadas en MySQL
@@ -177,13 +179,13 @@ public class MetaDao {
 
     /**
      * Obtener lista de relaciones de una tabla a partir de su ID
-     * 
+     *
      * @param conn Conexión con MySQL
      * @param tablaId ID de la tabla cuyas relaciones se desean buscar
-     * @param nombreTablaOrigen Nombre de la tabla, ya que en la tabla de 
+     * @param nombreTablaOrigen Nombre de la tabla, ya que en la tabla de
      * relaciones viene indicada por ID
      * @return Datos de las relaciones que vienen desde la tabla especificada
-     * @throws SQLException 
+     * @throws SQLException
      */
     private List<RelacionConfig> getRelacionesPorTablaId(Connection conn, Long tablaId, String nombreTablaOrigen) throws SQLException {
         List<RelacionConfig> relaciones = new ArrayList<>();
@@ -318,10 +320,10 @@ public class MetaDao {
         }
         return tablas;
     }
-    
+
     /**
-     * Obtener los nombres de las tablas (lógico y amigable) sin
-     * asignar a un módulo
+     * Obtener los nombres de las tablas (lógico y amigable) sin asignar a un
+     * módulo
      *
      * @return Lista de metadatos de las tablas
      */
@@ -329,7 +331,7 @@ public class MetaDao {
         List<TablaConfig> tablas = new ArrayList<>();
         String sql = "SELECT nombre_logico, nombre_amigable FROM erp_meta_tablas WHERE modulo_id IS NULL";
 
-        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery()) { 
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery()) {
             while (rs.next()) {
                 TablaConfig t = new TablaConfig();
                 t.setNombreLogico(rs.getString("nombre_logico"));
@@ -340,5 +342,63 @@ public class MetaDao {
             throw new BaseDatosException("Error al listar las tablas.", e);
         }
         return tablas;
+    }
+
+    /**
+     * Busca los UUIDS asociados a los archivos guardados en db4o
+     *
+     * @param tabla Nombre de la tabla en MySQL
+     * @return Lista de UUIDS de los archivos
+     */
+    public List<String> buscarFicherosAsociados(String tabla) {
+        List<String> uuids = new ArrayList<>();
+
+        // Obtener columnas de tipo ARCHIVO
+        List<ColumnaConfig> columnasArchivo = obtenerColumnasArchivo(tabla);
+
+        if (columnasArchivo.isEmpty()) {
+            return uuids; // No tiene columnas ARCHIVO
+        }
+
+        // Construir una consulta con UNION para que todas las columnas ARCHIVO
+        // se agrupen en una sola columna
+        StringBuilder sqlBuilder = new StringBuilder();
+        for (int i = 0; i < columnasArchivo.size(); i++) {
+            String colName = columnasArchivo.get(i).getNombre();
+            sqlBuilder.append("SELECT `").append(colName).append("` FROM `").append(tabla).append("` WHERE `").append(colName).append("` IS NOT NULL");
+            if (i < columnasArchivo.size() - 1) {
+                sqlBuilder.append(" UNION ");
+            }
+        }
+
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE); PreparedStatement stmt = conn.prepareStatement(sqlBuilder.toString()); ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                String uuid = rs.getString(1);
+                if (uuid != null && !uuid.isEmpty()) {
+                    uuids.add(uuid);
+                }
+            }
+        } catch (SQLException e) {
+            throw new BaseDatosException("Error al recuperar los archivos asociados.", e);
+        }
+        return uuids;
+    }
+
+    /**
+     * Busca las columnas que contienen un archivo: tiene el metadato isArchivo
+     * a true
+     *
+     * @param nombreLogico Nombre de la tabla en MySQL
+     * @return Lista de metadatos de la columna
+     */
+    private List<ColumnaConfig> obtenerColumnasArchivo(String nombreLogico) {
+        TablaConfig config = getConfiguracion(nombreLogico);
+        if (config == null || config.getColumnas() == null) {
+            return Collections.emptyList();
+        }
+
+        return config.getColumnas().stream()
+                .filter(ColumnaConfig::isArchivo)
+                .collect(Collectors.toList());
     }
 }

@@ -38,11 +38,11 @@ public class ApiGenerica {
         MetaDao metaDao = new MetaDao();
         ValidadorService validador = new ValidadorService(metaDao);
         SqlService sqlService = new SqlService(validador);
-        MetaService metaService = new MetaService(metaDao, validador, sqlService);
+                FicheroService ficheroService = new FicheroService();
+        MetaService metaService = new MetaService(metaDao, validador, sqlService, ficheroService);
         OrderService orderService = new OrderService(metaDao);
         JwtService jwtService = new JwtService();
         UsuarioDao authService = new UsuarioDao();
-        FicheroService ficheroService = new FicheroService();
         
         // ── Instanciar controladores ─────────────────────────────────
         BaseDao baseDao = new BaseDao();

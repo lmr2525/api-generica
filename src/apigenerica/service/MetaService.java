@@ -26,17 +26,20 @@ public class MetaService {
     private final MetaDao metaDao;
     private final ValidadorService validador;
     private final SqlService sqlService;
+    private final FicheroService ficheroService;
 
-    public MetaService(MetaDao metaDao, ValidadorService validador, SqlService sqlService) {
+    public MetaService(MetaDao metaDao, ValidadorService validador, SqlService sqlService,
+            FicheroService ficheroService) {
         this.metaDao = metaDao;
         this.validador = validador;
         this.sqlService = sqlService;
+        this.ficheroService = ficheroService;
     }
 
     /**
-     * Guardar configuración si ya se tiene el objeto TablaConfig (Formulario)
+     * Guardar metadatos
      *
-     * @param tabla
+     * @param tabla Metadatos a guardar
      */
     public void guardarConfiguracion(TablaConfig tabla) {
         // Generar nombre amigable si no lo tiene
@@ -63,9 +66,9 @@ public class MetaService {
     }
 
     /**
-     * Borra la configuración de la tabla en db4o.
+     * Borra los metadatos de la tabla
      *
-     * @param nombreLogico Nombre de la tabla.
+     * @param nombreLogico Nombre de la tabla
      */
     public void eliminarConfiguracion(String nombreLogico) {
         metaDao.eliminarConfiguracion(nombreLogico);
@@ -73,7 +76,7 @@ public class MetaService {
 
     /**
      * Construye el nombre amigable a partir del nombre lógico. Ejemplo:
-     * datos_clientes -- Datos clientes
+     * datos_clientes genera el nombre Datos clientes
      *
      * @param nombreLogico Nombre lógico de la tabla
      * @return Nombre amigable
@@ -127,7 +130,6 @@ public class MetaService {
                 }
             }
         }
-
         return relacionesFinales;
     }
 
@@ -152,17 +154,22 @@ public class MetaService {
 
             if (config != null && config.getRelaciones() != null) {
                 for (RelacionConfig rel : config.getRelaciones()) {
-                    // Si la tabla a la que apunta la FK TAMBIÉN está en nuestra lista de inserción
+                    // Si la tabla a la que apunta la FK TAMBIÉN está en la lista de inserción
                     if (tablas.contains(rel.getTablaDestino())) {
                         relacionesFinales.add(rel);
                     }
                 }
             }
         }
-
         return relacionesFinales;
     }
 
+    /**
+     * Devuelve los metadatos de una tabla
+     *
+     * @param nombreLogico Nombre de la tabla en MySQL
+     * @return Metadatos de la tabla
+     */
     public TablaConfig getConfiguracion(String nombreLogico) {
         TablaConfig config = metaDao.getConfiguracion(nombreLogico);
         if (config == null) {
@@ -175,7 +182,7 @@ public class MetaService {
      * Devuelve la lista de todas las tablas registradas para una base de datos.
      *
      * @param moduloId Id del módulo cuyas tablas se quieren mostrar
-     * @param sinModulo 
+     * @param sinModulo true si la tabla no pertenece a un módulo
      * @return Lista de metadatos de tablas
      */
     public List<TablaConfig> listarTablas(Long moduloId, Boolean sinModulo) {
@@ -192,6 +199,35 @@ public class MetaService {
     }
 
     /**
+     * Elimina una tabla
+     *
+     * @param nombreLogico Nombre de la base de datos en MySQL
+     * @throws SQLException
+     */
+    public void eliminarTabla(String nombreLogico) throws SQLException {
+        // Validar si hay tablas que dependan de esta tabla
+        List<RelacionConfig> relaciones = metaDao.getRelacionesHijas(nombreLogico);
+        if (!relaciones.isEmpty()) {
+            // Hay tablas hijas y el borrado fallará
+            throw new ValidacionException("No se puede eliminar la tabla porque otras tablas "
+                    + "dependen de ella.");
+        }
+        
+        List<String> listaUuids = metaDao.buscarFicherosAsociados(nombreLogico);
+
+        // Eliminar tabla
+        String sql = sqlService.generarDropSql(nombreLogico);
+        sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
+
+        // Borrar metadatos
+        metaDao.eliminarConfiguracion(nombreLogico);
+        // Eliminar ficheros asociados
+        for (String uuid : listaUuids) {
+            ficheroService.eliminar(uuid);
+        }
+    }
+
+    /**
      * Devuelve la configuración completa de una tabla (columnas y relaciones).
      *
      * @param nombreLogico Nombre de la tabla en MySQL
@@ -200,23 +236,23 @@ public class MetaService {
     public TablaConfig obtenerDetalleTabla(String nombreLogico) {
         return metaDao.getConfiguracion(nombreLogico);
     }
-    
+
     /**
      * Agrega una columna a una tabla
-     * 
-     * @param nombreTabla Nombre de la tabla
+     *
+     * @param nombreTabla Nombre de la tabla en MySQL
      * @param nuevaCol Metadatos de la nueva columna
-     * @throws SQLException 
+     * @throws SQLException
      */
     public void agregarColumna(String nombreTabla, ColumnaConfig nuevaCol) throws SQLException {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
         validador.validarColumnaNoExiste(config, nuevaCol.getNombre());
         validador.validarProteccionInterna(nuevaCol.getNombre());
-        
+
         // Crear columna
         String sql = sqlService.generarAddColumnSql(nombreTabla, nuevaCol);
         sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
-        
+
         // Actualizar metadatos
         if ("CONTRASENA".equalsIgnoreCase(nuevaCol.getTipo())) {
             nuevaCol.setContrasena(true);
@@ -225,10 +261,17 @@ public class MetaService {
         config.getColumnas().add(nuevaCol);
         metaDao.guardarConfiguracion(config);
     }
-    
+
+    /**
+     * Elimina la columna de una tabla
+     * 
+     * @param nombreTabla Nombre de la tabla en MySQL
+     * @param nombreColumna Nombre de la columna a eliminar
+     * @throws SQLException 
+     */
     public void eliminarColumna(String nombreTabla, String nombreColumna) throws SQLException {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
-        
+
         // Validaciones
         validador.validarProteccionInterna(nombreColumna);
         validador.validarColumnaExiste(config, nombreColumna);
@@ -241,14 +284,15 @@ public class MetaService {
         config.getColumnas().removeIf(c -> c.getNombre().equalsIgnoreCase(nombreColumna));
         metaDao.guardarConfiguracion(config);
     }
-    
+
     /**
      * Renombra una columna
-     * 
-     * @param nombreTabla
-     * @param nombreViejo
-     * @param nombreNuevo
-     * @throws SQLException 
+     *
+     * @param nombreTabla Nombre de la tabla en MySQL
+     * @param nombreViejo Nombre actual de la columna
+     * @param nombreNuevo Nombre por el que se reemplazará el nombre de la
+     * columna
+     * @throws SQLException
      */
     public void renombrarColumna(String nombreTabla, String nombreViejo, String nombreNuevo) throws SQLException {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);
@@ -263,16 +307,16 @@ public class MetaService {
 
         // Persistencia de metadatos
         config.getColumnas().stream()
-            .filter(c -> c.getNombre().equalsIgnoreCase(nombreViejo))
-            .findFirst()
-            .ifPresent(c -> c.setNombre(nombreNuevo));
-            
+                .filter(c -> c.getNombre().equalsIgnoreCase(nombreViejo))
+                .findFirst()
+                .ifPresent(c -> c.setNombre(nombreNuevo));
+
         metaDao.guardarConfiguracion(config);
     }
 
     /**
-     * Modifica una columna de la tabla
-     * 
+     * Modifica una columna de una tabla
+     *
      * @param nombreTabla Nombre de la tabla
      * @param colModificada Nombre de la columna
      */
@@ -285,7 +329,7 @@ public class MetaService {
         String sql = sqlService.generarModifyColumnSql(nombreTabla, colModificada);
         try {
             sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
-            
+
             // Persistir metadatos
             for (int i = 0; i < config.getColumnas().size(); i++) {
                 if (config.getColumnas().get(i).getNombre().equalsIgnoreCase(colModificada.getNombre())) {
@@ -296,7 +340,7 @@ public class MetaService {
             metaDao.guardarConfiguracion(config);
         } catch (SQLException e) {
             // Manejo específico de errores de MySQL al hacer ALTER TABLE
-            procesarErrorMysql(e); 
+            procesarErrorMysql(e);
         }
     }
 
@@ -314,8 +358,7 @@ public class MetaService {
                 throw new ValidacionException("El nombre de la columna ya está en uso.");
             case 1025: // Error de Foreign Key al intentar cambiar tipo de dato
                 throw new ValidacionException("No se puede modificar la columna porque es parte de una relación (Foreign Key). Elimine la relación primero.");
-            default:
-                // Error genérico
+            default: // Error genérico
                 throw new BaseDatosException("Error en la base de datos al modificar la tabla: " + e.getMessage(), e);
         }
     }
