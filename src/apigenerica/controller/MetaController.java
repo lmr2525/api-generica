@@ -106,6 +106,16 @@ public class MetaController {
         return tablasCreadas;
     }
 
+    public void eliminarTabla(Context ctx) {
+        try {
+            String nombreTabla = ctx.pathParam("tabla");
+            metaService.eliminarTabla(nombreTabla);
+            ctx.status(200).json(ApiRespuesta.ok("Tabla eliminada correctamente."));
+        } catch (SQLException e) {
+            ctx.status(500).json(ApiRespuesta.error("Error en la base de datos al eliminar la tabla"));
+        }
+    }
+    
     /**
      * Obtener nombre de todas las tablas de un módulo
      *

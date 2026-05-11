@@ -95,6 +95,8 @@ public class ApiGenerica {
         app.get("/api/metadata/tablas", ctx -> metaCtrl.listarTablas(ctx));
         // Obtener los metadatos de una tabla
         app.get("/api/metadata/tablas/{tabla}", ctx -> metaCtrl.obtenerEstructuraTabla(ctx));
+        // Eliminar una tabla
+        app.delete("/api/metadata/tablas/{tabla}", ctx -> metaCtrl.eliminarTabla(ctx));
         // Añadir columnas a una tabla
         app.post("/api/metadata/tablas/{tabla}/columnas", ctx -> metaCtrl.agregarColumna(ctx));
         // Modificar las columnas de una tabla
