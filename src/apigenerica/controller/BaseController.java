@@ -550,4 +550,27 @@ public class BaseController {
         ctx.header("Content-Disposition", "attachment; filename=\"" + fichero.getNombreFichero() + "\"");
         ctx.result(fichero.getContenido()); // El stream de bytes
     }
+    
+    // Método auxiliar dentro de BaseController para reutilizar en insert y update
+private void procesarFicherosDinamicos(Context ctx, String tabla, EntidadDinamica entidad, List<String> uuidsNuevos) {
+    TablaConfig config = metaService.getConfiguracion(tabla);
+    
+    // Filtramos solo las columnas que son de tipo FICHERO
+    config.getColumnas().stream()
+        .filter(c -> "FICHERO".equalsIgnoreCase(c.getTipo()))
+        .forEach(col -> {
+            UploadedFile file = ctx.uploadedFile(col.getNombre());
+            if (file != null) {
+                // Generamos UUID único para esta celda
+                String uuid = UUID.randomUUID().toString();
+                
+                // Actualizamos la entidad que irá a MySQL con el UUID
+                entidad.set(col.getNombre(), uuid);
+                uuidsNuevos.add(uuid);
+                
+                // Guardamos físicamente (el service decide si Disco o DB4O)
+                ficheroService.guardar(uuid, tabla, file);
+            }
+        });
+}
 }
