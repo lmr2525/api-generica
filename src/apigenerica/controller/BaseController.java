@@ -57,7 +57,7 @@ public class BaseController {
     }
 
     /**
-     * Obtener datos de una tabla
+     * Obtener entidad de una tabla
      *
      * @param ctx Contexto de la petición HTTP
      */
@@ -140,7 +140,7 @@ public class BaseController {
     }
 
     /**
-     * Obtener datos de un registro de una tabla
+     * Obtener entidad de un registro de una tabla
      *
      * @param ctx Contexto de la petición HTTP
      */
@@ -187,7 +187,7 @@ public class BaseController {
     }
 
     /**
-     * Inserta un registro en la base de datos
+     * Inserta un registro en la base de entidad
      *
      * @param ctx Contexto de la petición HTTP
      */
@@ -197,7 +197,7 @@ public class BaseController {
         String tabla = ctx.pathParam("tabla");
         validador.validarNombre(tabla);
 
-        // Obtener datos JSON
+        // Obtener entidad JSON
         Map<String, Object> body = extraerDatos(ctx);
         if (body == null || body.isEmpty()) {
             throw new ValidacionException("Cuerpo vacío.");
@@ -221,10 +221,7 @@ public class BaseController {
             respuesta.setId(id);
             ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok(respuesta));
         } catch (Exception e) {
-            // Borrar ficheros guardados
-            for (String uuid : uuids) {
-                ficheroService.eliminar(uuid);
-            }
+            limpiarFicheros(uuids); // Borrar ficheros guardados
             throw new BaseDatosException("Error al insertar.", e);
         }
     }
@@ -238,19 +235,19 @@ public class BaseController {
     public void insertTransaccional(Context ctx) {
         Map<String, Object> body = ctx.bodyAsClass(Map.class);
         // Obtener parámetros de la URL
-        Map<String, Object> datosRaw = (Map<String, Object>) body.get("datos");
-        if (datosRaw == null) {
+        Map<String, Object> datos = (Map<String, Object>) body.get("datos");
+        if (datos == null) {
             throw new ValidacionException("El campo 'datos' es obligatorio.");
         }
 
         // Ordenar tablas según fk
-        List<String> orden = orderService.ordenarTablas(new ArrayList<>(datosRaw.keySet()));
+        List<String> orden = orderService.ordenarTablas(new ArrayList<>(datos.keySet()));
         Map<String, EntidadDinamica> datosPorTabla = new LinkedHashMap<>();
 
         List<String> uuids = new ArrayList<>();
         
         for (String tabla : orden) {
-            Map<String, Object> mapaDatos = (Map<String, Object>) datosRaw.get(tabla);
+            Map<String, Object> mapaDatos = (Map<String, Object>) datos.get(tabla);
             if (mapaDatos == null) {
                 continue;
             }
@@ -262,6 +259,7 @@ public class BaseController {
             TablaConfig config = metaService.getConfiguracion(tabla);
             if (config != null && config.getColumnas() != null) {
                 entidad = convertirTipos(entidad, config.getColumnas());
+                procesarFicheros(ctx, tabla, entidad, uuids, config.getColumnas());
             }
             datosPorTabla.put(tabla, entidad);
         }
@@ -273,19 +271,33 @@ public class BaseController {
             try {
                 Map<String, Long> idsGenerados = baseDao.insertarTransaccional(conn, orden, datosPorTabla, relaciones);
                 conn.commit();
-                // Devolver todos los IDs generados por si el cliente los necesita
+                // Devolver el nombre de la tabla y los IDs generados en cada insert
                 ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok(idsGenerados));
             } catch (Exception e) {
-                conn.rollback();
+                conn.rollback(); // Deshacer cambios
+                limpiarFicheros(uuids); // Borrar ficheros guardados
                 throw new BaseDatosException("Error al insertar. Se aplicó rollback.", e);
             }
         } catch (SQLException e) {
+            limpiarFicheros(uuids); // Borrar ficheros guardados
             throw new BaseDatosException("Error de conexión.", e);
+        }
+    }
+    
+    /**
+     * Eliminar ficheros a partir de su UUID. Se utiliza si la
+     * operación falló
+     * 
+     * @param uuids Lista de UUIDs
+     */
+    private void limpiarFicheros(List<String> uuids) {
+        for (String uuid : uuids) {
+            ficheroService.eliminar(uuid);
         }
     }
 
     /**
-     * Actualiza los datos de una tabla
+     * Actualiza los entidad de una tabla
      *
      * @param ctx Contexto de la petición HTTP
      */
@@ -301,22 +313,27 @@ public class BaseController {
         if (body == null || body.isEmpty()) {
             throw new ValidacionException("Cuerpo vacío.");
         }
-        EntidadDinamica datos = new EntidadDinamica();
-        body.forEach(datos::set);
+        
+        EntidadDinamica entidad = new EntidadDinamica();
+        body.forEach(entidad::set); // Mapear cada línea a EntidadDinamica
 
         // Buscar metadatos de la tabla de MySQL
         TablaConfig config = metaService.getConfiguracion(tabla);
         if (config.getColumnas() != null) {
-            datos = convertirTipos(datos, config.getColumnas());
+            entidad = convertirTipos(entidad, config.getColumnas());
         }
 
+        List<String> uuids = new ArrayList<>(); 
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
-            int filas = baseDao.actualizar(conn, tabla, datos, id);
+            procesarFicheros(ctx, tabla, entidad, uuids, config.getColumnas());
+            // Actualizar en MySQL
+            int filas = baseDao.actualizar(conn, tabla, entidad, id);
             if (filas == 0) {
-                throw new RecursoNoEncontradoException("No se encontró registro.");
+                throw new RecursoNoEncontradoException("No se encontró el registro.");
             }
-            ctx.json(ApiRespuesta.ok("Actualizado."));
+            ctx.status(HttpCode.OK).json(ApiRespuesta.ok("Actualizado."));
         } catch (SQLException e) {
+            limpiarFicheros(uuids); // Borrar ficheros guardados
             throw new BaseDatosException("Error al actualizar.", e);
         }
     }
@@ -397,7 +414,7 @@ public class BaseController {
     }
 
     /**
-     * Elimina los datos de una tabla
+     * Elimina los entidad de una tabla
      *
      * @param ctx Contexto de la petición HTTP
      */
@@ -491,14 +508,14 @@ public class BaseController {
      * que se devuelven al cliente
      *
      * @param entidad Entidad/Registro de una tabla
-     * @param configs Metadatos de sus columnas para saber qué datos se deben
-     * ocultar
+     * @param configs Metadatos de sus columnas para saber qué entidad se deben
+ocultar
      */
     private void aplicarFiltroPrivacidadEntidad(EntidadDinamica entidad, List<ColumnaConfig> configs) {
         if (entidad == null || configs == null) {
             return;
         }
-        // Ocultar datos no visibles y contraseñas
+        // Ocultar entidad no visibles y contraseñas
         configs.stream()
                 .filter(c -> c.isContrasena() || !c.isVisible())
                 .forEach(c -> entidad.getTodo().remove(c.getNombre()));
@@ -508,8 +525,8 @@ public class BaseController {
      * Aplica el filro de privacidad a una lista de entidades
      *
      * @param entidades Lista de entidades
-     * @param configs Metadatos de sus columnas para saber qué datos se deben
-     * ocultar
+     * @param configs Metadatos de sus columnas para saber qué entidad se deben
+ocultar
      */
     private void aplicarFiltroPrivacidadLista(List<EntidadDinamica> entidades, List<ColumnaConfig> configs) {
         if (entidades == null) {
