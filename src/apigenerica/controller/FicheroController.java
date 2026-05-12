@@ -18,7 +18,7 @@ import java.util.Map;
 
 /**
  *
- * @author 2025-2026-DAM1
+ * @author Grupo1
  */
 public class FicheroController {
 
@@ -29,10 +29,10 @@ public class FicheroController {
     }
 
     /**
-     * Devuelve los metadatos de un fichero: nombre, tamaño, mime type y fecha
+     * Devuelve los metadatos de un fichero: nombre, tamaño, mimetype y fecha
      * de subida
      *
-     * @param ctx
+     * @param ctx Contexto de la petición HTTP
      */
     public void obtenerInfo(Context ctx) {
         String uuid = ctx.pathParam("uuid");
@@ -54,7 +54,7 @@ public class FicheroController {
     /**
      * Devuelve el contenido del fichero
      * 
-     * @param ctx 
+     * @param ctx Contexto de la petición HTTP
      */
     public void descargar(Context ctx) {
         String uuid = ctx.pathParam("uuid");

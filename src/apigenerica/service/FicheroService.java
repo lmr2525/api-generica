@@ -22,7 +22,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
- *
+ * Encargado de almacenar y recuperar los archivos en db4o
  * @author Grupo1
  */
 public class FicheroService {
@@ -30,7 +30,7 @@ public class FicheroService {
     private static final String RUTA = "ficheros.db4o";
     private final ObjectContainer db = ConexionDb4o.getConexion(RUTA);
 
-    // Tamaño máximo permitido por fichero al subir a db4o
+    // Tamaño máximo permitido por fichero almacenado en db4o
     private static final long TAMANO_MAX = 20L * 1024 * 1024; // 20MB
     // Ruta del disco en la que se almacenan los archivos que exceden el límite
     private static final String CARPETA_FICHEROS = "storage/ficheros/";
@@ -39,8 +39,10 @@ public class FicheroService {
         try (InputStream is = file.getContent()) {
             Fichero f;
 
+            // Si el fichero excede del tamaño, máximo se guarda en el disco
             if (file.getSize() > TAMANO_MAX) {
                 String ruta = guardarEnDisco(uuid, tabla, is, file.getFilename());
+                // Se almacena el objeto con la ruta del fichero en db4o
                 f = new Fichero(
                         uuid,
                         file.getFilename(),
@@ -50,16 +52,17 @@ public class FicheroService {
                         LocalDateTime.now()
                 );
             } else {
-                // Obtener todos los bytes del archivo
+                // Convertir a array de bytes para almacenar en db4o
                 byte[] bytes = inputStreamToByteArray(is);
                 boolean comprimido = false;
 
+                // Comprimir si pesa más de 1KB y es comprimible
                 if (file.getSize() > 1024 && esComprimible(file.getContentType())) {
-                    // Comprimir si pesa más de 1KB y es comprimible
                     bytes = comprimir(bytes);
                     comprimido = true;
                 }
 
+                // Se almacena el objeto con su contenido en db4o
                 f = new Fichero(
                         uuid,
                         file.getFilename(),
@@ -77,6 +80,17 @@ public class FicheroService {
         }
     }
 
+    /**
+     * Guardar el contenido del fichero en el disco, si supera el tamaño máximo
+     * permitido
+     * 
+     * @param uuid UUID del fichero
+     * @param tabla 
+     * @param is 
+     * @param nombreOriginal Nombre del archivo para almacenarlo
+     * @return Ruta en la que se guardó el contenido
+     * @throws IOException 
+     */
     private String guardarEnDisco(String uuid, String tabla, InputStream is, String nombreOriginal) throws IOException {
         Path directorio = Paths.get(CARPETA_FICHEROS, tabla);
         Files.createDirectories(directorio);
@@ -87,9 +101,9 @@ public class FicheroService {
     }
 
     /**
-     * Comprueba si el archivo es comprimible a partir de su Mime Type
+     * Comprueba si el archivo es comprimible a partir de su MimeType
      *
-     * @param mime Mime Type del archivo
+     * @param mime MimeType del archivo
      * @return true si el archivo es comprimible; false, en caso contrario
      */
     private boolean esComprimible(String mime) {
@@ -138,15 +152,16 @@ public class FicheroService {
     }
 
     /**
-     * Leer bytes
+     * Convertir un InputStream a array de bytes. Necesario porque db4o no
+     * puede almacenar un InputStream
      *
-     * @param is
-     * @return
+     * @param is InputStream a convertir
+     * @return Array de Bytes resultante
      * @throws IOException
      */
     private byte[] inputStreamToByteArray(InputStream is) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        int nRead;
+        int nRead; // Posición actual de lectura
         byte[] data = new byte[16384]; // Buffer de 16KB
         while ((nRead = is.read(data, 0, data.length)) != -1) {
             buffer.write(data, 0, nRead);
@@ -175,10 +190,12 @@ public class FicheroService {
     }
 
     /**
-     * Recuperar contenido de un archivo a partir de su UUID
+     * Recuperar contenido de un archivo a partir de su UUID.
+     * Devuelve directamente el Stream para no tener que almacenar
+     * el contenido completo del fichero en memoria
      * 
-     * @param uuid
-     * @return
+     * @param uuid UUID del archivo
+     * @return Stream
      * @throws IOException 
      */
     public InputStream obtenerStream(String uuid) throws IOException {
@@ -201,7 +218,8 @@ public class FicheroService {
     }
 
     /**
-     * Recuperar metadatos de un archivo a partir de su UUID
+     * Recuperar metadatos de un archivo a partir de su UUID (nombre,
+     * fecha de subida, mime type...)
      *
      * @param uuid UUID del archivo
      * @return Objeto Fichero o null si no se encontró

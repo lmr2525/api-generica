@@ -212,34 +212,16 @@ public class BaseController {
         }
         
         List<String> uuids = new ArrayList<>(); 
-        // Obtener columnas fichero
-        List<ColumnaConfig> colsFichero = metaDao.obtenerColumnasArchivo(tabla);
-        for (ColumnaConfig col : colsFichero) {
-            // Obtener fichero de la petición si lo hay
-            UploadedFile fichero = ctx.uploadedFile(col.getNombre());
-            if (fichero != null) {
-                // Almacenar UUID en MySQL para localizar el fichero en db4o
-                String uuid = UUID.randomUUID().toString();
-                entidad.set(col.getNombre(), uuid);
-                uuids.add(uuid);
-            }
-        }
-
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
+            procesarFicheros(ctx, tabla, entidad, uuids, config.getColumnas());
+            // Insertar en MySQL
             long id = baseDao.insertar(conn, tabla, entidad);
-            // Si hay fichero, guardar en db4o
-            for (ColumnaConfig col : colsFichero) {
-                UploadedFile file = ctx.uploadedFile(col.getNombre());
-                if (file != null) {
-                    String uuidAsignado = (String) entidad.getTodo().get(col.getNombre());
-                    ficheroService.guardar(uuidAsignado, tabla, file);
-                }
-            }
-            Map<String, Object> respuesta = new LinkedHashMap<>();
-            respuesta.put("id", id);
+            // Devolver objeto con el ID que le ha sido asignado
+            EntidadDinamica respuesta = new EntidadDinamica();
+            respuesta.setId(id);
             ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok(respuesta));
-        } catch (SQLException e) {
-            // Si falla MySQL, borrar el de db4o si ya se guardó
+        } catch (Exception e) {
+            // Borrar ficheros guardados
             for (String uuid : uuids) {
                 ficheroService.eliminar(uuid);
             }
@@ -255,7 +237,7 @@ public class BaseController {
     @SuppressWarnings("unchecked")
     public void insertTransaccional(Context ctx) {
         Map<String, Object> body = ctx.bodyAsClass(Map.class);
-
+        // Obtener parámetros de la URL
         Map<String, Object> datosRaw = (Map<String, Object>) body.get("datos");
         if (datosRaw == null) {
             throw new ValidacionException("El campo 'datos' es obligatorio.");
@@ -263,9 +245,10 @@ public class BaseController {
 
         // Ordenar tablas según fk
         List<String> orden = orderService.ordenarTablas(new ArrayList<>(datosRaw.keySet()));
-
         Map<String, EntidadDinamica> datosPorTabla = new LinkedHashMap<>();
 
+        List<String> uuids = new ArrayList<>();
+        
         for (String tabla : orden) {
             Map<String, Object> mapaDatos = (Map<String, Object>) datosRaw.get(tabla);
             if (mapaDatos == null) {
@@ -535,26 +518,23 @@ public class BaseController {
         entidades.forEach(e -> aplicarFiltroPrivacidadEntidad(e, configs));
     }
     
-    // Método auxiliar dentro de BaseController para reutilizar en insert y update
-private void procesarFicheros(Context ctx, String tabla, EntidadDinamica entidad, List<String> uuidsNuevos) {
-    TablaConfig config = metaService.getConfiguracion(tabla);
-    
-    // Filtramos solo las columnas que son de tipo FICHERO
-    config.getColumnas().stream()
-        .filter(c -> "FICHERO".equalsIgnoreCase(c.getTipo()))
-        .forEach(col -> {
-            UploadedFile file = ctx.uploadedFile(col.getNombre());
-            if (file != null) {
-                // Generamos UUID único para esta celda
-                String uuid = UUID.randomUUID().toString();
-                
-                // Actualizamos la entidad que irá a MySQL con el UUID
-                entidad.set(col.getNombre(), uuid);
-                uuidsNuevos.add(uuid);
-                
-                // Guardamos físicamente (el service decide si Disco o DB4O)
-                ficheroService.guardar(uuid, tabla, file);
+    private void procesarFicheros(Context ctx, String tabla, EntidadDinamica entidad, List<String> uuidsNuevos, List<ColumnaConfig> columnas) {
+        for (ColumnaConfig col : columnas) {
+            // Obtener columnas fichero
+            if (col.isArchivo()) {
+                UploadedFile file = ctx.uploadedFile(col.getNombre());
+
+                if (file != null) {
+                    // Generar UUID
+                    String uuid = UUID.randomUUID().toString();
+                    // Guardar el UUID en una lista para borrar los ficheros en caso de error
+                    uuidsNuevos.add(uuid);
+                    // Añadir UUID a la entidad que se insertará en MySQL
+                    entidad.set(col.getNombre(), uuid);
+                    // Guardar fichero
+                    ficheroService.guardar(uuid, tabla, file);
+                }
             }
-        });
-}
+        }
+    }
 }

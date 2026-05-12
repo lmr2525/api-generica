@@ -55,6 +55,8 @@ public class TipoDatoMapper {
                 return "DATE";
             case "BINARIO":
                 return "TINYINT(1)";
+            case "ARCHIVO":
+                return "VARCHAR(255)";
             default:
                 return "VARCHAR(255)";
         }
@@ -104,9 +106,8 @@ public class TipoDatoMapper {
             case "FECHA_HORA":
                 return LocalDateTime.parse(valorStr);
             case "TEXTO_CORTO":
-                return valorStr;
             case "TEXTO_LARGO":
-                return valorStr;
+            case "ARCHIVO":
             default:
                 return valorStr;
         }
