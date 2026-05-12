@@ -11,7 +11,6 @@ import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ApiRespuesta;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.EntidadDinamica;
-import apigenerica.model.Fichero;
 import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
 import apigenerica.service.FicheroService;
@@ -233,7 +232,7 @@ public class BaseController {
                 UploadedFile file = ctx.uploadedFile(col.getNombre());
                 if (file != null) {
                     String uuidAsignado = (String) entidad.getTodo().get(col.getNombre());
-                    ficheroService.guardar(uuidAsignado, tabla, id, file);
+                    ficheroService.guardar(uuidAsignado, tabla, file);
                 }
             }
             Map<String, Object> respuesta = new LinkedHashMap<>();
@@ -536,23 +535,8 @@ public class BaseController {
         entidades.forEach(e -> aplicarFiltroPrivacidadEntidad(e, configs));
     }
     
-    public void descargarFichero(Context ctx) {
-        String uuid = ctx.pathParam("uuid");
-
-        Fichero fichero = ficheroService.obtener(uuid);
-
-        if (fichero == null) {
-            throw new RecursoNoEncontradoException("El archivo no existe.");
-        }
-
-        // Configurar respuesta para el navegador
-        ctx.contentType(fichero.getMimeType());
-        ctx.header("Content-Disposition", "attachment; filename=\"" + fichero.getNombreFichero() + "\"");
-        ctx.result(fichero.getContenido()); // El stream de bytes
-    }
-    
     // Método auxiliar dentro de BaseController para reutilizar en insert y update
-private void procesarFicherosDinamicos(Context ctx, String tabla, EntidadDinamica entidad, List<String> uuidsNuevos) {
+private void procesarFicheros(Context ctx, String tabla, EntidadDinamica entidad, List<String> uuidsNuevos) {
     TablaConfig config = metaService.getConfiguracion(tabla);
     
     // Filtramos solo las columnas que son de tipo FICHERO

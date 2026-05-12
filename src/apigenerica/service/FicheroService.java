@@ -9,6 +9,7 @@ import apigenerica.model.Fichero;
 import com.db4o.ObjectContainer;
 import com.db4o.ObjectSet;
 import io.javalin.http.UploadedFile;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,6 +18,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  *
@@ -26,9 +29,11 @@ public class FicheroService {
 
     private static final String RUTA = "ficheros.db4o";
     private final ObjectContainer db = ConexionDb4o.getConexion(RUTA);
-    // Guardar ficheros muy pesados en el disco
+
+    // Tamaño máximo permitido por fichero al subir a db4o
+    private static final long TAMANO_MAX = 20L * 1024 * 1024; // 20MB
+    // Ruta del disco en la que se almacenan los archivos que exceden el límite
     private static final String CARPETA_FICHEROS = "storage/ficheros/";
-    private static final long TAMANO_MAX = 5 * 1024 * 1024; // 5MB
 
     public void guardar(String uuid, String tabla, UploadedFile file) {
         try (InputStream is = file.getContent()) {
@@ -51,7 +56,7 @@ public class FicheroService {
 
                 if (file.getSize() > 1024 && esComprimible(file.getContentType())) {
                     // Comprimir si pesa más de 1KB y es comprimible
-                    bytes = GzipUtil.comprimir(bytes);
+                    bytes = comprimir(bytes);
                     comprimido = true;
                 }
 
@@ -96,6 +101,43 @@ public class FicheroService {
     }
 
     /**
+     * Comprime los bytes de un fichero antes de almacenarlos en db4o
+     *
+     * @param datos Cadena de bytes del fichero a comprimir
+     * @return Cadena de bytes resultante de la compresión
+     * @throws IOException
+     */
+    public byte[] comprimir(byte[] datos) throws IOException {
+        if (datos == null || datos.length == 0) {
+            return datos;
+        }
+        ByteArrayOutputStream obj = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(obj)) {
+            gzip.write(datos);
+        }
+        return obj.toByteArray();
+    }
+
+    /**
+     * Descomprime los bytes de un fichero almacenado en db4o
+     *
+     * @param datosComprimidos Cadena de bytes a descomprimir
+     * @return Cadena de bytes resultante de la descompresión
+     * @throws IOException
+     */
+    public byte[] descomprimir(byte[] datosComprimidos) throws IOException {
+        if (datosComprimidos == null || datosComprimidos.length == 0) {
+            return datosComprimidos;
+        }
+        try (GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(datosComprimidos))) {
+            return inputStreamToByteArray(gis);
+        } catch (IOException e) {
+            // Si no estaba comprimido, devolvemos los datos tal cual
+            return datosComprimidos;
+        }
+    }
+
+    /**
      * Leer bytes
      *
      * @param is
@@ -118,48 +160,54 @@ public class FicheroService {
      * @param uuid UUID del archivo
      */
     public void eliminar(String uuid) {
-        Fichero f = obtener(uuid);
+        Fichero f = obtenerMetadatos(uuid); // Buscar fichero
         if (f != null) {
             if (f.isEnDisco()) {
-                try { // Eliminar el archivo del disco
+                try { // Eliminar el archivo del disco antes de borrar el objeto de db4o
                     Files.deleteIfExists(Paths.get(f.getRuta()));
                 } catch (IOException e) {
-                    System.err.println("No se pudo eliminar el archivo físico.");
+                    System.err.println("No se pudo eliminar el archivo del disco duro.");
                 }
             }
-            db.delete(f); // Eliminar registro de db4o
+            db.delete(f); // Eliminar objeto de db4o
             db.commit();
         }
     }
 
     /**
-     * Recuperar el archivo de db4o
-     *
-     * @param uuid UUID del archivo
-     * @return Objeto Fichero
+     * Recuperar contenido de un archivo a partir de su UUID
+     * 
+     * @param uuid
+     * @return
+     * @throws IOException 
      */
-    public Fichero obtener(String uuid) {
-        ObjectSet<Fichero> result = db.queryByExample(new Fichero(uuid));
-        if (!result.hasNext()) {
+    public InputStream obtenerStream(String uuid) throws IOException {
+        Fichero file = obtenerMetadatos(uuid); // Recuperar objeto de db4o
+        if (file == null) {
             return null;
         }
 
-        Fichero file = result.next();
-        
-        // Cargar desde el disco
         if (file.isEnDisco()) {
-            try {
-                file.setContenido(Files.readAllBytes(Paths.get(file.getRuta())));
-            } catch (IOException e) {
-                System.err.println("Error: No se ha encontrado el archivo.");
-            }
-        } else if (file.isComprimido()) { // Cargar descomprimido desde db4o
-            try {
-                file.setContenido(GzipUtil.descomprimir(file.getContenido()));
-            } catch (Exception e) {
-                System.err.println("Error al descomprimir fichero.");
-            }
+            // Devolver un stream directo al archivo físico
+            return Files.newInputStream(Paths.get(file.getRuta()));
+        } else if (file.isComprimido()) {
+            // Descomprir
+            byte[] descompr = descomprimir(file.getContenido());
+            return new ByteArrayInputStream(descompr);
+        } else {
+            // Archivo sin comprimir
+            return new ByteArrayInputStream(file.getContenido());
         }
-        return file;
+    }
+
+    /**
+     * Recuperar metadatos de un archivo a partir de su UUID
+     *
+     * @param uuid UUID del archivo
+     * @return Objeto Fichero o null si no se encontró
+     */
+    public Fichero obtenerMetadatos(String uuid) {
+        ObjectSet<Fichero> result = db.queryByExample(new Fichero(uuid));
+        return result.hasNext() ? result.next() : null;
     }
 }

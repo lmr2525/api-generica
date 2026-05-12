@@ -16,12 +16,12 @@ public class Fichero {
     private String nombreFichero;
     private String mimeType;
     private long tamano;
-    private byte[] contenido; // Si el archivo pesa menos de 5MB, se guarda completo en db4o
+    private byte[] contenido; // Si el archivo se guarda completo en db4o
     private boolean comprimido;
-    private String ruta; // Si el archivo excede de los 5MB, se guarda en el disco duro
+    private String ruta; // Si el archivo se guarda en el disco duro
     private LocalDateTime fechaSubida;
 
-    // Archivos de menos de 5MB (guardar completo en db4o)
+    // Archivos ligeros (guardar completos en db4o)
     public Fichero(String uuid, String nombreFichero, String mimeType, long tamano, 
             byte[] contenido, boolean comprimido, LocalDateTime fechaSubida) {
         this(uuid);
@@ -33,7 +33,7 @@ public class Fichero {
         this.fechaSubida = fechaSubida;
     }
     
-    // Archivos de más de 5MB (guardar contenido en disco y ruta en db4o)
+    // Archivos pesados (guardar contenido en disco y ruta en db4o)
     public Fichero(String uuid, String nombreFichero, String mimeType, long tamano, 
             String ruta, LocalDateTime fechaSubida) {
         this(uuid);
