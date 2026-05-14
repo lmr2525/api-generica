@@ -41,17 +41,15 @@ public class BaseController {
     private final ValidadorService validador;
     private final MetaService metaService;
     private final BaseDao baseDao;
-    private final MetaDao metaDao;
     private final OrderService orderService;
     private final FicheroService ficheroService;
 
     public BaseController(ValidadorService validador, MetaService metaService,
-            BaseDao baseDao, MetaDao metaDao, OrderService orderService, 
+            BaseDao baseDao, OrderService orderService,
             FicheroService ficheroService) {
         this.validador = validador;
         this.metaService = metaService;
         this.baseDao = baseDao;
-        this.metaDao = metaDao;
         this.orderService = orderService;
         this.ficheroService = ficheroService;
     }
@@ -210,8 +208,8 @@ public class BaseController {
         if (config.getColumnas() != null) {
             entidad = convertirTipos(entidad, config.getColumnas());
         }
-        
-        List<String> uuids = new ArrayList<>(); 
+
+        List<String> uuids = new ArrayList<>();
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
             procesarFicheros(ctx, tabla, entidad, uuids, config.getColumnas());
             // Insertar en MySQL
@@ -245,7 +243,7 @@ public class BaseController {
         Map<String, EntidadDinamica> datosPorTabla = new LinkedHashMap<>();
 
         List<String> uuids = new ArrayList<>();
-        
+
         for (String tabla : orden) {
             Map<String, Object> mapaDatos = (Map<String, Object>) datos.get(tabla);
             if (mapaDatos == null) {
@@ -283,11 +281,10 @@ public class BaseController {
             throw new BaseDatosException("Error de conexión.", e);
         }
     }
-    
+
     /**
-     * Eliminar ficheros a partir de su UUID. Se utiliza si la
-     * operación falló
-     * 
+     * Eliminar ficheros a partir de su UUID. Se utiliza si la operación falló
+     *
      * @param uuids Lista de UUIDs
      */
     private void limpiarFicheros(List<String> uuids) {
@@ -313,7 +310,7 @@ public class BaseController {
         if (body == null || body.isEmpty()) {
             throw new ValidacionException("Cuerpo vacío.");
         }
-        
+
         EntidadDinamica entidad = new EntidadDinamica();
         body.forEach(entidad::set); // Mapear cada línea a EntidadDinamica
 
@@ -323,17 +320,36 @@ public class BaseController {
             entidad = convertirTipos(entidad, config.getColumnas());
         }
 
-        List<String> uuids = new ArrayList<>(); 
+        List<String> uuidsNuevos = new ArrayList<>(); // UUIDs de los archivos a insertar
+        List<String> uuidsBorrar = new ArrayList<>(); // UUIDs de los archivos a reemplazar
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE)) {
-            procesarFicheros(ctx, tabla, entidad, uuids, config.getColumnas());
+            // Buscar el registro en MySQL antes de actualizar para obtener los UUIDs a borrar
+            EntidadDinamica registroActual = baseDao.buscarPorId(conn, tabla, config.getColumnas(), id);
+            if (registroActual == null) {
+                throw new RecursoNoEncontradoException("Registro no encontrado.");
+            }
+            
+            // Buscar el UUID
+            if (config.getColumnas() != null) {
+                for (ColumnaConfig col : config.getColumnas()) {
+                    if ("FICHERO".equalsIgnoreCase(col.getTipo()) && ctx.uploadedFile(col.getNombre()) != null) {
+                        // Guardar el UUID viejo para borrarlo luego
+                        String uuidBorrar = (String) registroActual.get(col.getNombre());
+                        if (uuidBorrar != null) uuidsBorrar.add(uuidBorrar);
+                    }
+                }
+                procesarFicheros(ctx, tabla, entidad, uuidsNuevos, config.getColumnas());
+            }
             // Actualizar en MySQL
             int filas = baseDao.actualizar(conn, tabla, entidad, id);
-            if (filas == 0) {
+            if (filas > 0) {
+                limpiarFicheros(uuidsBorrar); // Borrar ficheros reemplazados
+                ctx.status(HttpCode.OK).json(ApiRespuesta.ok("Actualizado."));
+            } else {
                 throw new RecursoNoEncontradoException("No se encontró el registro.");
             }
-            ctx.status(HttpCode.OK).json(ApiRespuesta.ok("Actualizado."));
         } catch (SQLException e) {
-            limpiarFicheros(uuids); // Borrar ficheros guardados
+            limpiarFicheros(uuidsNuevos); // Borrar ficheros guardados
             throw new BaseDatosException("Error al actualizar.", e);
         }
     }
@@ -393,10 +409,9 @@ public class BaseController {
             throw new BaseDatosException("Error de conexión.", e);
         }
     }
-    
+
     /**
-     * Extrae los parámetros de la petición, tanto
-     * JSON como Multipart
+     * Extrae los parámetros de la petición, tanto JSON como Multipart
      */
     private Map<String, Object> extraerDatos(Context ctx) {
         if (ctx.isMultipart()) { // Si tiene un archivo
@@ -509,7 +524,7 @@ public class BaseController {
      *
      * @param entidad Entidad/Registro de una tabla
      * @param configs Metadatos de sus columnas para saber qué entidad se deben
-ocultar
+     * ocultar
      */
     private void aplicarFiltroPrivacidadEntidad(EntidadDinamica entidad, List<ColumnaConfig> configs) {
         if (entidad == null || configs == null) {
@@ -526,7 +541,7 @@ ocultar
      *
      * @param entidades Lista de entidades
      * @param configs Metadatos de sus columnas para saber qué entidad se deben
-ocultar
+     * ocultar
      */
     private void aplicarFiltroPrivacidadLista(List<EntidadDinamica> entidades, List<ColumnaConfig> configs) {
         if (entidades == null) {
@@ -534,7 +549,7 @@ ocultar
         }
         entidades.forEach(e -> aplicarFiltroPrivacidadEntidad(e, configs));
     }
-    
+
     private void procesarFicheros(Context ctx, String tabla, EntidadDinamica entidad, List<String> uuidsNuevos, List<ColumnaConfig> columnas) {
         for (ColumnaConfig col : columnas) {
             // Obtener columnas fichero

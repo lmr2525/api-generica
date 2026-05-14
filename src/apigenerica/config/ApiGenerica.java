@@ -7,6 +7,7 @@ import apigenerica.controller.MetaController;
 import apigenerica.controller.ModuloController;
 import apigenerica.dao.BaseDao;
 import apigenerica.dao.MetaDao;
+import apigenerica.dao.RolDao;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.NoAutorizadoException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
@@ -17,10 +18,12 @@ import apigenerica.service.FicheroService;
 import apigenerica.service.JwtService;
 import apigenerica.service.MetaService;
 import apigenerica.service.OrderService;
+import apigenerica.service.PermisoService;
 import apigenerica.service.SqlService;
 import apigenerica.service.ValidadorService;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.Javalin;
+import io.javalin.http.ForbiddenResponse;
 
 /**
  * Punto de entrada de la API genérica del ERP.
@@ -44,9 +47,11 @@ public class ApiGenerica {
         OrderService orderService = new OrderService(metaDao);
         JwtService jwtService = new JwtService();
         UsuarioDao authService = new UsuarioDao();
+        RolDao rolDao = new RolDao();
+        PermisoService permisoService = new PermisoService(rolDao);
         
         // ── Instanciar controladores ─────────────────────────────────
-        BaseController baseCtrl = new BaseController(validador, metaService, baseDao, metaDao, orderService, ficheroService);
+        BaseController baseCtrl = new BaseController(validador, metaService, baseDao, orderService, ficheroService);
         AuthController authCtrl = new AuthController(jwtService, authService);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
@@ -61,32 +66,47 @@ public class ApiGenerica {
         }).start(7000);
 
         app.before(ctx -> {
-        String path = ctx.path();
+            String path = ctx.path();
 
-        if (path.startsWith("/api/auth") || path.startsWith("/api/store")) {
-            return; // No pedir token aquí
-        }
+            if (path.startsWith("/api/auth") || path.startsWith("/api/store")) {
+                return; // No pedir token aquí
+            }
 
-        // Extraer token de las rutas protegidas
-        String authHeader = ctx.header("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new Exception("Token no proporcionado");
-        }
+            // Extraer token de las rutas protegidas
+            String authHeader = ctx.header("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                throw new Exception("Token no proporcionado");
+            }
 
-        String token = authHeader.replace("Bearer ", "");
+            String token = authHeader.replace("Bearer ", "");
 
-        try {
-            // Validar el token
-            DecodedJWT jwt = jwtService.verificarToken(token);
-            
-            // Inyectar el ID del usuario en el contexto por si el controller lo necesita
-            ctx.attribute("usuarioId", jwt.getClaim("id").asLong());
-            
-        } catch (Exception e) {
-            // Si el token es incorrecto
-            throw new NoAutorizadoException("Token inválido o expirado", e);
-        }
-    });
+            try {
+                // Validar el token
+                DecodedJWT jwt = jwtService.verificarToken(token);
+
+                // Inyectar el ID del usuario en el contexto por si el controller lo necesita
+                ctx.attribute("usuarioId", jwt.getClaim("id").asLong());
+                ctx.attribute("rol", jwt.getClaim("rol").asString());
+            } catch (Exception e) {
+                // Si el token es incorrecto
+                throw new NoAutorizadoException("Token inválido o expirado", e);
+            }
+        });
+        
+        app.before("/api/{tabla}*", ctx -> {
+            String path = ctx.path();
+            if (path.startsWith("/api/metadata") || path.startsWith("/api/auth")) return;
+
+            String rol = ctx.attribute("rol");
+            String tabla = ctx.pathParam("tabla");
+            String metodo = ctx.method();
+
+            // Consultar tabla de roles para comprobar los permisos
+            boolean tienePermiso = permisoService.verificar(rol, tabla, metodo);
+            if (!tienePermiso) {
+                throw new ForbiddenResponse("El rol " + rol + " no tiene permisos para " + metodo + " en " + tabla);
+            }
+        });
         
         // ── Endpoints de metadatos ──────────────
         // Crear tablas

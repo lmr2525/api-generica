@@ -14,7 +14,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
- *
+ * Operaciones CRUD para la tabla de usuarios de la aplicación
+ * erp_users, almacenada en MySQL
  * @author Grupo1
  */
 public class UsuarioDao {
@@ -27,7 +28,7 @@ public class UsuarioDao {
      * @return Rol obtenido
      */
     public String obtenerRol(Long id) {
-        String sql = "SELECT rol FROM erp_users WHERE id = ? AND activo = 1";
+        String sql = "SELECT `rol` FROM `erp_users` WHERE `id` = ? AND `activo` = 1";
 
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, id);
