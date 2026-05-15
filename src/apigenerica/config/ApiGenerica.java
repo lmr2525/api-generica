@@ -129,7 +129,10 @@ public class ApiGenerica {
         // ── Endpoints de autenticación ───────────────────────────────
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
         app.post("/api/auth/refresh", ctx -> authCtrl.refresh(ctx));
-
+        app.post("/api/auth/registrar", ctx -> authCtrl.registrar(ctx));
+        app.put("/api/auth/usuarios/{id}", ctx -> authCtrl.modificarUsuario(ctx));
+        app.delete("/api/auth/usuarios/{id}", ctx -> authCtrl.eliminar(ctx));
+        
         // ── Endpoints de configuración ERP ───────────────────────────
         app.get("/api/erp/config", ctx -> configCtrl.getConfig(ctx));
         app.put("/api/erp/config", ctx -> configCtrl.updateConfig(ctx));

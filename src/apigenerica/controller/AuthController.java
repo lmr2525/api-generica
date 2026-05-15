@@ -2,7 +2,8 @@ package apigenerica.controller;
 
 import apigenerica.model.ApiRespuesta;
 import apigenerica.dao.UsuarioDao;
-import apigenerica.excepciones.BaseDatosException;
+import apigenerica.excepciones.RecursoNoEncontradoException;
+import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.EntidadDinamica;
 import apigenerica.service.JwtService;
 import com.auth0.jwt.exceptions.JWTVerificationException;
@@ -106,16 +107,60 @@ public class AuthController {
             ctx.status(401).json(ApiRespuesta.error("Refresh token expirado o inválido."));
         }
     }
-    
+
     /**
      * Registrar cuenta de usuario en la base de datos
-     * 
-     * @param ctx 
+     *
+     * @param ctx
      */
     public void registrar(Context ctx) {
         Map<String, String> datosUsuario = ctx.bodyAsClass(Map.class);
         String email = datosUsuario.get("email");
         String password = datosUsuario.get("password");
         String rol = datosUsuario.get("rol");
+
+        if (email == null || password == null || rol == null) {
+            throw new ValidacionException("Todos los campos (email, password, rol) son obligatorios.");
+        }
+
+        // Encriptar la contraseña
+        String passwordHash = BCrypt.hashpw(password, BCrypt.gensalt());
+
+        // Guardar en DB
+        long id = usuarioDao.crearUsuario(email, passwordHash, rol);
+
+        ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok("Usuario registrado con ID: " + id));
+    }
+
+    public void modificarUsuario(Context ctx) {
+        Long id = ctx.pathParamAsClass("id", Long.class).get();
+        Map<String, String> datos = ctx.bodyAsClass(Map.class);
+
+        // Buscar el usuario actual
+        EntidadDinamica usuarioActual = usuarioDao.obtenerPorId(id);
+        if (usuarioActual == null) {
+            throw new RecursoNoEncontradoException("Usuario no encontrado.");
+        }
+
+        // Si el dato viene en el body, se utiliza; si no, se utiliza el de la db
+        String email = datos.getOrDefault("email", (String) usuarioActual.get("email"));
+        String rol = datos.getOrDefault("rol", (String) usuarioActual.get("rol"));
+        String activoStr = datos.getOrDefault("activo", String.valueOf(usuarioActual.get("activo")));
+
+        // Actualizar datos
+        usuarioDao.actualizarUsuario(id, email, rol, Integer.parseInt(activoStr));
+        ctx.status(HttpCode.OK).json(ApiRespuesta.ok("Usuario actualizado."));
+    }
+
+    /**
+     * Borrar cuenta de la base de datos
+     *
+     * @param ctx
+     */
+    public void eliminar(Context ctx) {
+        Long id = ctx.pathParamAsClass("id", Long.class).get();
+
+        usuarioDao.eliminarUsuario(id);
+        ctx.status(HttpCode.OK).json(ApiRespuesta.ok("Usuario eliminado."));
     }
 }
