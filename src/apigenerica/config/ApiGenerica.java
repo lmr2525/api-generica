@@ -24,10 +24,11 @@ import apigenerica.service.ValidadorService;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.Javalin;
 import io.javalin.http.ForbiddenResponse;
+import io.javalin.http.UnauthorizedResponse;
 
 /**
- * Punto de entrada de la API genérica del ERP.
- * Inicializa conexiones, servicios, controladores y endpoints.
+ * Punto de entrada de la API genérica del ERP. Inicializa conexiones,
+ * servicios, controladores y endpoints.
  *
  * @author Grupo1
  */
@@ -49,14 +50,14 @@ public class ApiGenerica {
         UsuarioDao authService = new UsuarioDao();
         RolDao rolDao = new RolDao();
         PermisoService permisoService = new PermisoService(rolDao);
-        
+
         // ── Instanciar controladores ─────────────────────────────────
         BaseController baseCtrl = new BaseController(validador, metaService, baseDao, orderService, ficheroService);
         AuthController authCtrl = new AuthController(jwtService, authService);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
         MetaController metaCtrl = new MetaController(metaService, validador, orderService, sqlService);
-        
+
         // ── Crear servidor Javalin ───────────────────────────────────
         Javalin app = Javalin.create(config -> {
             // Habilitar CORS para que el frontend pueda consumir la API
@@ -65,10 +66,12 @@ public class ApiGenerica {
             config.enableDevLogging();
         }).start(7000);
 
+        // Revisión token
         app.before(ctx -> {
             String path = ctx.path();
 
-            if (path.startsWith("/api/auth") || path.startsWith("/api/store")) {
+            if (path.contentEquals("/api/auth/login") || path.contentEquals("/api/auth/registrar")
+                    || path.startsWith("/api/store")) {
                 return; // No pedir token aquí
             }
 
@@ -92,13 +95,19 @@ public class ApiGenerica {
                 throw new NoAutorizadoException("Token inválido o expirado", e);
             }
         });
-        
+
+        // Permisos
         app.before("/api/{tabla}*", ctx -> {
             String path = ctx.path();
-            if (path.startsWith("/api/metadata") || path.startsWith("/api/auth")) return;
+            if (path.startsWith("/api/store") || path.startsWith("/api/auth")) {
+                return;
+            }
 
-            String rol = ctx.attribute("rol");
-            String tabla = ctx.pathParam("tabla");
+            Integer rol = ctx.attribute("rol");
+            if (rol == null) {
+                throw new UnauthorizedResponse("No se encontró información del rol. Inicie sesión.");
+            }
+            String tabla = ctx.pathParam("tabla").toLowerCase();
             String metodo = ctx.method();
 
             // Consultar tabla de roles para comprobar los permisos
@@ -107,7 +116,7 @@ public class ApiGenerica {
                 throw new ForbiddenResponse("El rol " + rol + " no tiene permisos para " + metodo + " en " + tabla);
             }
         });
-        
+
         // ── Endpoints de metadatos ──────────────
         // Crear tablas
         app.post("/api/metadata/tablas", ctx -> metaCtrl.crearTabla(ctx));
@@ -125,14 +134,14 @@ public class ApiGenerica {
         app.put("/api/metadata/tablas/{tabla}/columnas/{columna}/nombre", ctx -> metaCtrl.renombrarColumna(ctx));
         // Eliminar columnas de una tabla
         app.delete("/api/metadata/tablas/{tabla}/columnas/{columna}", ctx -> metaCtrl.eliminarColumna(ctx));
-        
+
         // ── Endpoints de autenticación ───────────────────────────────
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
         app.post("/api/auth/refresh", ctx -> authCtrl.refresh(ctx));
         app.post("/api/auth/registrar", ctx -> authCtrl.registrar(ctx));
         app.put("/api/auth/usuarios/{id}", ctx -> authCtrl.modificarUsuario(ctx));
         app.delete("/api/auth/usuarios/{id}", ctx -> authCtrl.eliminar(ctx));
-        
+
         // ── Endpoints de configuración ERP ───────────────────────────
         app.get("/api/erp/config", ctx -> configCtrl.getConfig(ctx));
         app.put("/api/erp/config", ctx -> configCtrl.updateConfig(ctx));
@@ -156,18 +165,18 @@ public class ApiGenerica {
         app.delete("/api/{tabla}/{id}", ctx -> baseCtrl.delete(ctx));
 
         // ── Manejo global de excepciones ─────────────────────────────
-        app.exception(ValidacionException.class, (e, ctx) ->
-            ctx.status(400).json(ApiRespuesta.error(e.getMessage())));
+        app.exception(ValidacionException.class, (e, ctx)
+                -> ctx.status(400).json(ApiRespuesta.error(e.getMessage())));
 
-        app.exception(RecursoNoEncontradoException.class, (e, ctx) ->
-            ctx.status(404).json(ApiRespuesta.error(e.getMessage())));
+        app.exception(RecursoNoEncontradoException.class, (e, ctx)
+                -> ctx.status(404).json(ApiRespuesta.error(e.getMessage())));
 
-        app.exception(NoAutorizadoException.class, (e, ctx) ->
-            ctx.status(401).json(ApiRespuesta.error(e.getMessage())));
+        app.exception(NoAutorizadoException.class, (e, ctx)
+                -> ctx.status(401).json(ApiRespuesta.error(e.getMessage())));
 
-        app.exception(BaseDatosException.class, (e, ctx) ->
-            ctx.status(500).json(ApiRespuesta.error(e.getMessage())));
-        
+        app.exception(BaseDatosException.class, (e, ctx)
+                -> ctx.status(500).json(ApiRespuesta.error(e.getMessage())));
+
         app.exception(Exception.class, (e, ctx) -> {
             System.err.println("Error no controlado: " + e.getMessage());
             e.printStackTrace();

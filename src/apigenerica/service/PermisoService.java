@@ -32,8 +32,8 @@ public class PermisoService {
      * @param metodo Método HTTP correspondiente al permiso
      * @return true si el rol tiene permisos; false, en caso contrario
      */
-    public boolean verificar(String rol, String tabla, String metodo) {
-        String clave = rol.toUpperCase() + ":" + tabla.toLowerCase();
+    public boolean verificar(int rol, String tabla, String metodo) {
+        String clave = rol + ":" + tabla.toLowerCase();
 
         // Intentar obtener de la caché. Si no está, buscar en DB y almacenar
         PermisoTabla permisos = cachePermisos.computeIfAbsent(clave, k -> obtenerRolPorTabla(rol, tabla));
@@ -59,7 +59,7 @@ public class PermisoService {
      * @param tabla
      * @return 
      */
-    private PermisoTabla obtenerRolPorTabla(String rol, String tabla) {
+    private PermisoTabla obtenerRolPorTabla(int rol, String tabla) {
         return rolDao.obtenerPermisos(rol, tabla);
     }
 

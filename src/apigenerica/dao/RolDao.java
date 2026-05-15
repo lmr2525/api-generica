@@ -19,13 +19,15 @@ import java.sql.SQLException;
  */
 public class RolDao {
 
-    public PermisoTabla obtenerPermisos(String rol, String tabla) {
-        String sql = "SELECT puede_leer, puede_escribir, puede_editar, puede_borrar "
-                + "FROM permisos_tablas WHERE rol = ? AND tabla = ?";
+    public PermisoTabla obtenerPermisos(int rol, String tabla) {
+        String sql = "SELECT p.puede_leer, p.puede_escribir, p.puede_editar, p.puede_borrar "
+                + "FROM erp_permisos p "
+                + "JOIN erp_meta_tablas t ON p.tabla_id = t.id "
+                + "WHERE p.rol_id = ? AND t.nombre_logico = ?";
 
-        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_CLIENTE); PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setString(1, rol);
+            ps.setInt(1, rol);
             ps.setString(2, tabla);
 
             try (ResultSet rs = ps.executeQuery()) {

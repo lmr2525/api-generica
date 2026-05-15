@@ -93,14 +93,24 @@ public class ConexionMysql {
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
             
+            // Tabla de roles
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS `erp_roles` (" +
+                "  `id` INT AUTO_INCREMENT PRIMARY KEY," +
+                "  `nombre` VARCHAR(50) NOT NULL," +
+                "  `descripcion` VARCHAR(255)" +     
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+            );
+            
             // Tabla de usuarios de la aplicación
             stmt.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS `erp_users` (" +
                 "  `id` INT AUTO_INCREMENT PRIMARY KEY," +
                 "  `email` VARCHAR(255) NOT NULL," +
                 "  `contrasena` CHAR(60) NOT NULL," +
-                "  `rol` VARCHAR(50) NOT NULL," +        
-                "  `activo` TINYINT(1) NOT NULL DEFAULT 1" +
+                "  `rol` INT NOT NULL," +        
+                "  `activo` TINYINT(1) NOT NULL DEFAULT 1," +
+                "  FOREIGN KEY (`rol`) REFERENCES `erp_roles`(`id`) ON DELETE CASCADE" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
 
@@ -156,6 +166,21 @@ public class ConexionMysql {
                 "  `tabla_destino` VARCHAR(100) NOT NULL," +
                 "  `cardinalidad` VARCHAR(10) NOT NULL," +
                 "  FOREIGN KEY (`tabla_origen`) REFERENCES `erp_meta_tablas`(`id`) ON DELETE CASCADE" +
+                ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+            );
+            
+            // Tabla de permisos
+            stmt.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS `erp_permisos` (" +
+                "  `id` INT AUTO_INCREMENT PRIMARY KEY," +
+                "  `rol_id` INT NOT NULL," +        
+                "  `tabla_id` INT NOT NULL," +
+                "  `puede_leer` TINYINT(1) NOT NULL DEFAULT 0," +        
+                "  `puede_escribir` TINYINT(1) NOT NULL DEFAULT 0," +
+                "  `puede_editar` TINYINT(1) NOT NULL DEFAULT 0," +
+                "  `puede_borrar` TINYINT(1) NOT NULL DEFAULT 0," +    
+                "  FOREIGN KEY (`tabla_id`) REFERENCES `erp_meta_tablas`(`id`) ON DELETE CASCADE," +        
+                "  FOREIGN KEY (`rol_id`) REFERENCES `erp_roles`(`id`) ON DELETE CASCADE" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
 
