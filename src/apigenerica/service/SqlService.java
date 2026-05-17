@@ -16,8 +16,7 @@ import java.sql.Statement;
 import java.util.List;
 
 /**
- * @author Grupo1 
- * Operaciones SQL genéricas (no CRUD)
+ * @author Grupo1 Operaciones SQL genéricas (no CRUD)
  */
 public class SqlService {
 
@@ -42,7 +41,7 @@ public class SqlService {
             validador.validarColumnasUnicas(campos);
 
             StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS `" + nombreTabla + "` (");
-            sql.append("`id` BIGINT AUTO_INCREMENT PRIMARY KEY, ");
+            sql.append("`id` INT AUTO_INCREMENT PRIMARY KEY, ");
 
             // Crear columnas
             if (campos != null) {
@@ -59,8 +58,14 @@ public class SqlService {
             if (relaciones != null && !relaciones.isEmpty()) {
                 for (int i = 0; i < relaciones.size(); i++) {
                     RelacionConfig rel = relaciones.get(i);
+                    // Nombre de la relación
+                    String nombreConstraint = rel.getNombreRelacion();
 
-                    sql.append("CONSTRAINT `fk_").append(nombreTabla).append("_").append(rel.getTablaDestino()).append("` ")
+                    // Si el nombre es nulo o vacío, generar uno
+                    if (nombreConstraint == null || nombreConstraint.trim().isEmpty()) {
+                        nombreConstraint = "fk_" + nombreTabla + "_" + rel.getTablaDestino() + "_" + i;
+                    }
+                    sql.append("CONSTRAINT `fk_").append(nombreConstraint).append("` ")
                             .append("FOREIGN KEY (`").append(rel.getFkColumna()).append("`) ")
                             .append("REFERENCES `").append(rel.getTablaDestino()).append("`(`id`) ")
                             .append("ON DELETE CASCADE ON UPDATE CASCADE");
@@ -102,7 +107,7 @@ public class SqlService {
     public String generarAddColumnSql(String tabla, ColumnaConfig col) {
         validador.validarNombre(tabla);
         validador.validarNombre(col.getNombre());
-        
+
         String sqlCol = construirDefinicionColumna(col);
         if (sqlCol.isEmpty()) {
             throw new IllegalArgumentException("Definición de columna no válida.");
@@ -133,27 +138,27 @@ public class SqlService {
     public String generarModifyColumnSql(String tabla, ColumnaConfig col) {
         validador.validarNombre(tabla);
         validador.validarNombre(col.getNombre());
-        
+
         String definicion = construirDefinicionColumna(col);
         if (definicion.isEmpty()) {
             throw new IllegalArgumentException("Definición de columna no válida.");
         }
         return String.format("ALTER TABLE `%s` MODIFY COLUMN %s", tabla, definicion);
     }
- 
+
     /**
      * Construye una sentencia ALTER TABLE RENAME COLUMN
-     * 
+     *
      * @param tabla Nombre de la tabla que se modificará
      * @param nombreActual Nombre actual de la columna
      * @param nuevaConfig
-     * @return 
+     * @return
      */
     public String generarRenameColumnSql(String tabla, String nombreActual, ColumnaConfig nuevaConfig) {
         validador.validarNombre(tabla);
         validador.validarNombre(nombreActual);
         validador.validarNombre(nuevaConfig.getNombre());
-        
+
         String sqlCol = construirDefinicionColumna(nuevaConfig);
         if (sqlCol.isEmpty()) {
             throw new IllegalArgumentException("Definición de columna no válida.");

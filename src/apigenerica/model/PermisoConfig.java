@@ -5,20 +5,49 @@
 package apigenerica.model;
 
 /**
+ * Representa los permisos CRUD de un rol sobre una tabla/sección concreta.
  *
  * @author Grupo1
  */
-public class PermisoTabla {
+public class PermisoConfig {
 
+    private String rol;
+    private String tabla;
     private boolean puedeLeer;
     private boolean puedeEscribir;
     private boolean puedeEditar;
     private boolean puedeBorrar;
 
-    public PermisoTabla() {
+    public PermisoConfig() {
     }
 
-    // Getters y setters
+    public PermisoConfig(String rol, String tabla,
+            boolean puedeVer, boolean puedeCrear,
+            boolean puedeEditar, boolean puedeEliminar) {
+        this.rol = rol;
+        this.tabla = tabla;
+        this.puedeLeer = puedeVer;
+        this.puedeEscribir = puedeCrear;
+        this.puedeEditar = puedeEditar;
+        this.puedeBorrar = puedeEliminar;
+    }
+
+    public String getRol() {
+        return rol;
+    }
+
+    public void setRol(String rol) {
+        this.rol = rol;
+    }
+
+    public String getTabla() {
+        return tabla;
+    }
+
+    public void setTabla(String tabla) {
+        this.tabla = tabla;
+    }
+
     public boolean isPuedeLeer() {
         return puedeLeer;
     }

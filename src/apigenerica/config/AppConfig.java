@@ -22,4 +22,11 @@ public class AppConfig {
     public static String getSecretKey() {
         return SECRET_KEY;
     }
+    
+    // Se lee de la variable de entorno ERP_AES_KEY si está definida (producción).
+    // Si no, cae al valor de desarrollo. Cambiarlo en producción sin recompilar.
+    // IMPORTANTE: debe tener exactamente 16, 24 o 32 caracteres para AES-128/192/256.
+    public static final String AES_KEY = System.getenv("ERP_AES_KEY") != null
+            ? System.getenv("ERP_AES_KEY")
+            : "ErpClaveSegura32CaracteresExact!"; // 32 chars → AES-256
 }

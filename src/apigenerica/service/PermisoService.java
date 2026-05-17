@@ -5,7 +5,7 @@
 package apigenerica.service;
 
 import apigenerica.dao.RolDao;
-import apigenerica.model.PermisoTabla;
+import apigenerica.model.PermisoConfig;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,7 +22,7 @@ public class PermisoService {
     
     // La clave es "ROL:TABLA"
     // El valor es el objeto con los booleanos de permisos
-    private final Map<String, PermisoTabla> cachePermisos = new ConcurrentHashMap<>();
+    private final Map<String, PermisoConfig> cachePermisos = new ConcurrentHashMap<>();
 
     /**
      * Comprueba si un rol tiene permisos para una tabla
@@ -36,7 +36,7 @@ public class PermisoService {
         String clave = rol + ":" + tabla.toLowerCase();
 
         // Intentar obtener de la caché. Si no está, buscar en DB y almacenar
-        PermisoTabla permisos = cachePermisos.computeIfAbsent(clave, k -> obtenerRolPorTabla(rol, tabla));
+        PermisoConfig permisos = cachePermisos.computeIfAbsent(clave, k -> obtenerRolPorTabla(rol, tabla));
 
         if (permisos == null) return false; // Si no hay permisos configurados, no dar permiso
 
@@ -59,8 +59,8 @@ public class PermisoService {
      * @param tabla
      * @return 
      */
-    private PermisoTabla obtenerRolPorTabla(int rol, String tabla) {
-        return rolDao.obtenerPermisos(rol, tabla);
+    private PermisoConfig obtenerRolPorTabla(int rol, String tabla) {
+        return rolDao.getPermisos(rol, tabla);
     }
 
     /**
