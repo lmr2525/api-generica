@@ -23,8 +23,8 @@ import apigenerica.service.SqlService;
 import apigenerica.service.ValidadorService;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.Javalin;
+import io.javalin.http.Context;
 import io.javalin.http.ForbiddenResponse;
-import io.javalin.http.UnauthorizedResponse;
 
 /**
  * Punto de entrada de la API genérica del ERP. Inicializa conexiones,
@@ -66,54 +66,27 @@ public class ApiGenerica {
             config.enableDevLogging();
         }).start(7000);
 
-        // Revisión token
-        app.before(ctx -> {
+        // Verificar Token (excepto login/store)
+        app.before("/api/*", ctx -> {
             String path = ctx.path();
-
-            if (path.contentEquals("/api/auth/login") || path.contentEquals("/api/auth/registrar")
-                    || path.startsWith("/api/store")) {
-                return; // No pedir token aquí
-            }
-
-            // Extraer token de las rutas protegidas
-            String authHeader = ctx.header("Authorization");
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                throw new Exception("Token no proporcionado");
-            }
-
-            String token = authHeader.replace("Bearer ", "");
-
-            try {
-                // Validar el token
-                DecodedJWT jwt = jwtService.verificarToken(token);
-
-                // Inyectar el ID del usuario en el contexto por si el controller lo necesita
-                ctx.attribute("usuarioId", jwt.getClaim("id").asLong());
-                ctx.attribute("rol", jwt.getClaim("rol").asString());
-            } catch (Exception e) {
-                // Si el token es incorrecto
-                throw new NoAutorizadoException("Token inválido o expirado", e);
-            }
-        });
-
-        // Permisos
-        app.before("/api/{tabla}*", ctx -> {
-            String path = ctx.path();
-            if (path.startsWith("/api/store") || path.startsWith("/api/auth")) {
+            if (path.startsWith("/api/auth/login") || path.startsWith("/api/store") || path.startsWith("/api/auth/signup")) {
                 return;
             }
 
+            // Verificar JWT y setear atributos
+            DecodedJWT jwt = jwtService.verificarToken(getToken(ctx));
+            ctx.attribute("usuarioId", jwt.getClaim("id").asLong());
+            ctx.attribute("rol", jwt.getClaim("rol").asInt());
+        });
+
+        // Filtro de datos para tablas dinámicas
+        app.before("/api/data/{tabla}*", ctx -> {
             Integer rol = ctx.attribute("rol");
-            if (rol == null) {
-                throw new UnauthorizedResponse("No se encontró información del rol. Inicie sesión.");
-            }
             String tabla = ctx.pathParam("tabla").toLowerCase();
             String metodo = ctx.method();
 
-            // Consultar tabla de roles para comprobar los permisos
-            boolean tienePermiso = permisoService.verificar(rol, tabla, metodo);
-            if (!tienePermiso) {
-                throw new ForbiddenResponse("El rol " + rol + " no tiene permisos para " + metodo + " en " + tabla);
+            if (!permisoService.verificar(rol, tabla, metodo)) {
+                throw new ForbiddenResponse("No tienes permiso para " + metodo + " en la tabla " + tabla);
             }
         });
 
@@ -138,31 +111,35 @@ public class ApiGenerica {
         // ── Endpoints de autenticación ───────────────────────────────
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
         app.post("/api/auth/refresh", ctx -> authCtrl.refresh(ctx));
-        app.post("/api/auth/registrar", ctx -> authCtrl.registrar(ctx));
+        app.post("/api/auth/signup", ctx -> authCtrl.registrar(ctx));
+        app.get("/api/auth/usuarios/{id}", ctx -> authCtrl.obtenerUsuario(ctx));
         app.put("/api/auth/usuarios/{id}", ctx -> authCtrl.modificarUsuario(ctx));
         app.delete("/api/auth/usuarios/{id}", ctx -> authCtrl.eliminar(ctx));
 
         // ── Endpoints de configuración ERP ───────────────────────────
-        app.get("/api/erp/config", ctx -> configCtrl.getConfig(ctx));
-        app.put("/api/erp/config", ctx -> configCtrl.updateConfig(ctx));
+        app.get("/api/metadata/config", ctx -> configCtrl.getConfig(ctx));
+        app.put("/api/metadata/config", ctx -> configCtrl.updateConfig(ctx));
 
         // ── Endpoints de módulos ─────────────────────────────────────
-        app.get("/api/erp/modulos", ctx -> moduloCtrl.getAll(ctx));
-        app.post("/api/erp/modulos", ctx -> moduloCtrl.create(ctx));
-        app.delete("/api/erp/modulos/{id}", ctx -> moduloCtrl.delete(ctx));
+        app.get("/api/metadata/modulos", ctx -> moduloCtrl.getAll(ctx));
+        app.post("/api/metadata/modulos", ctx -> moduloCtrl.create(ctx));
+        app.delete("/api/metadata/modulos/{id}", ctx -> moduloCtrl.delete(ctx));
 
         // ── Endpoints CRUD transaccionales ─────────────────────────────────────
-        app.post("/api/batch/insert", ctx -> baseCtrl.insertTransaccional(ctx));
-        app.put("/api/batch/update", ctx -> baseCtrl.updateTransaccional(ctx));
-        app.delete("/api/batch/delete", ctx -> baseCtrl.deleteTransaccional(ctx));
+        app.post("/api/data/batch/insert", ctx -> baseCtrl.insertTransaccional(ctx));
+        app.put("/api/data/batch/update", ctx -> baseCtrl.updateTransaccional(ctx));
+        app.delete("/api/data/batch/delete", ctx -> baseCtrl.deleteTransaccional(ctx));
 
         // ── Endpoints CRUD genéricos (cualquier tabla) ───────────────
         // IMPORTANTE: Van al final para no interceptar las rutas específicas
-        app.get("/api/{tabla}", ctx -> baseCtrl.fetchTodo(ctx));
-        app.get("/api/{tabla}/{id}", ctx -> baseCtrl.fetchPorId(ctx));
-        app.post("/api/{tabla}", ctx -> baseCtrl.insert(ctx));
-        app.put("/api/{tabla}/{id}", ctx -> baseCtrl.update(ctx));
-        app.delete("/api/{tabla}/{id}", ctx -> baseCtrl.delete(ctx));
+        app.get("/api/data/{tabla}", ctx -> baseCtrl.fetchTodo(ctx));
+        app.get("/api/data/{tabla}/{id}", ctx -> baseCtrl.fetchPorId(ctx));
+        app.post("/api/data/{tabla}", ctx -> baseCtrl.insert(ctx));
+        app.put("/api/data/{tabla}/{id}", ctx -> baseCtrl.update(ctx));
+        app.delete("/api/data/{tabla}/{id}", ctx -> baseCtrl.delete(ctx));
+
+        // Catálogo público 
+        app.get("/api/store", ctx -> baseCtrl.fetchTodo(ctx));
 
         // ── Manejo global de excepciones ─────────────────────────────
         app.exception(ValidacionException.class, (e, ctx)
@@ -192,5 +169,13 @@ public class ApiGenerica {
         System.out.println("===========================================");
         System.out.println("  API ERP Genérica arrancada en :7000");
         System.out.println("===========================================");
+    }
+    
+    private static String getToken(Context ctx) {
+        String header = ctx.header("Authorization");
+        if (header == null || !header.startsWith("Bearer ")) {
+            throw new io.javalin.http.UnauthorizedResponse("Token no proporcionado o formato inválido");
+        }
+        return header.substring(7); // Quitar "Bearer "
     }
 }

@@ -13,9 +13,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author Grupo1 
  * Gestiona tokens JWT, utilizados para identificar al cliente de
  * cada petición HTTP
+ * 
+ * @author Grupo1 
  */
 public class JwtService {
 
@@ -23,11 +24,12 @@ public class JwtService {
 
     /**
      * Genera JWT Access Token
+     *
      * @param usuarioId
      * @param rol
-     * @return 
+     * @return
      */
-    public String generarAccessToken(Long usuarioId, String rol) {
+    public String generarAccessToken(Long usuarioId, Integer rol) {
         return JWT.create()
                 .withIssuer("tu_empresa_erp")
                 .withClaim("id", usuarioId)
@@ -53,7 +55,7 @@ public class JwtService {
                 .verify(token); // Lanza excepción si la firma es inválida o expiró
     }
 
-    public Map<String, String> insertarTokensRespuesta(Long usuarioId, String rol) {
+    public Map<String, String> insertarTokensRespuesta(Long usuarioId, Integer rol) {
         String accessToken = generarAccessToken(usuarioId, rol);
         String refreshToken = generarRefreshToken(usuarioId);
         Map<String, String> respuesta = new HashMap<>();

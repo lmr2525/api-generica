@@ -18,8 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * @author Grupo1 
- * Operaciones con los metadatos
+ * @author Grupo1 Operaciones con los metadatos
  */
 public class MetaService {
 
@@ -47,12 +46,16 @@ public class MetaService {
             tabla.setNombreAmigable(crearNombreAmigable(tabla.getNombreLogico()));
         }
 
-        // Marcar columnas de contraseña automáticamente
+        // Marcar columnas de contraseña y archivo automáticamente
         if (tabla.getColumnas() != null) {
             for (ColumnaConfig col : tabla.getColumnas()) {
                 if ("CONTRASENA".equalsIgnoreCase(col.getTipo())) {
                     col.setContrasena(true);
                     col.setVisible(false);
+                }
+
+                if ("ARCHIVO".equalsIgnoreCase(col.getTipo())) {
+                    col.setArchivo(true);
                 }
             }
         }
@@ -61,6 +64,10 @@ public class MetaService {
             // Guardar objeto
             metaDao.guardarConfiguracion(tabla);
         } catch (Exception e) {
+            e.printStackTrace();
+            if (e.getCause() != null) {
+                e.getCause().printStackTrace();
+            }
             throw new BaseDatosException("Error al guardar configuración de '" + tabla.getNombreLogico() + "'.", e);
         }
     }
@@ -197,7 +204,7 @@ public class MetaService {
         // Todas las tablas
         return metaDao.getTodas();
     }
-    
+
     /**
      * Elimina una tabla
      *
@@ -212,7 +219,7 @@ public class MetaService {
             throw new ValidacionException("No se puede eliminar la tabla porque otras tablas "
                     + "dependen de ella.");
         }
-        
+
         List<String> listaUuids = metaDao.buscarFicherosAsociados(nombreLogico);
 
         // Eliminar tabla
@@ -264,10 +271,10 @@ public class MetaService {
 
     /**
      * Elimina la columna de una tabla
-     * 
+     *
      * @param nombreTabla Nombre de la tabla en MySQL
      * @param nombreColumna Nombre de la columna a eliminar
-     * @throws SQLException 
+     * @throws SQLException
      */
     public void eliminarColumna(String nombreTabla, String nombreColumna) throws SQLException {
         TablaConfig config = metaDao.getConfiguracion(nombreTabla);

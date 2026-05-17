@@ -75,7 +75,7 @@ public class MetaController {
 
     /*
     * Valida una lista de tablas recibidas desde el formulario,
-    * genera el SQL de creación y persiste los metadatos en db4o.
+    * genera el SQL de creación y persiste los metadatos
     *
     * @param request Datos de la petición
     * @return Número de tablas creadas
@@ -129,8 +129,8 @@ public class MetaController {
     public void listarTablas(Context ctx) {
         // Obtener nombre del módulo de la URL
         Long moduloId = ctx.queryParamAsClass("modulo", Long.class)
-                .check(id -> id > 0, "El parámetro 'modulo' debe ser mayor a 0.")
                 .allowNullable()
+                .check(id -> id == null || id > 0, "El parámetro 'modulo' debe ser mayor a 0.")
                 .get();
         // Obtener boolean de la URL 
         Boolean sinModulo = ctx.queryParamAsClass("sinModulo", Boolean.class)
@@ -168,6 +168,10 @@ public class MetaController {
         try {
             // Obtener nombre de la tabla de la URL
             String nombreTabla = ctx.pathParam("tabla");
+            if (metaService.getConfiguracion(nombreTabla) == null) {
+                throw new RecursoNoEncontradoException("La tabla '" + nombreTabla + "' no existe.");
+            }
+            
             // Convertir JSON a objeto ColumnaConfig
             ColumnaConfig nuevaCol = ctx.bodyAsClass(ColumnaConfig.class);
 

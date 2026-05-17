@@ -4,6 +4,8 @@
  */
 package apigenerica.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * @author Grupo1
  * Metadatos de las columnas de la base de datos
@@ -13,9 +15,13 @@ public class ColumnaConfig {
     String nombre;
     String tipo;
     boolean nullable = true;
+    @JsonProperty("es_contrasena")
     boolean contrasena = false; // Hashear antes de insertar en MySQL
+    @JsonProperty("es_visible")
     boolean visible = true; // Para el DTO
+    @JsonProperty("es_sensible")
     boolean sensible = false; // Enviar dato a Paradox
+    @JsonProperty("es_archivo")
     boolean archivo = false; // Enviar dato a db4o
     boolean autoincremental;
     boolean unico;

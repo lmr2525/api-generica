@@ -106,7 +106,7 @@ public class ConexionMysql {
             stmt.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS `erp_users` (" +
                 "  `id` INT AUTO_INCREMENT PRIMARY KEY," +
-                "  `email` VARCHAR(255) NOT NULL," +
+                "  `email` VARCHAR(255) NOT NULL UNIQUE," +
                 "  `contrasena` CHAR(60) NOT NULL," +
                 "  `rol` INT NOT NULL," +        
                 "  `activo` TINYINT(1) NOT NULL DEFAULT 1," +

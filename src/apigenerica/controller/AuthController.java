@@ -52,7 +52,12 @@ public class AuthController {
         if (login != null && BCrypt.checkpw(password, (String) login.get("hash"))) {
             // Contraseña correcta: Extraer los datos necesarios
             Long usuarioId = login.getId();
-            String rol = (String) login.get("rol");
+            Object rolObj = login.get("rol");
+            Integer rol = (rolObj instanceof Number) ? ((Number) rolObj).intValue() : null;
+            if (rol == null) {
+                ctx.status(HttpCode.INTERNAL_SERVER_ERROR).json(ApiRespuesta.error("Error en la configuración del rol del usuario."));
+                return;
+            }
             // Generar JWT
             Map<String, String> respuesta = jwtService.insertarTokensRespuesta(usuarioId, rol);
             ctx.status(HttpCode.OK).json(ApiRespuesta.ok(respuesta));
@@ -89,7 +94,7 @@ public class AuthController {
             Long usuarioId = jwt.getClaim("id").asLong();
 
             // Buscar rol del usuario
-            String rol = usuarioDao.obtenerRol(usuarioId);
+            Integer rol = usuarioDao.obtenerRol(usuarioId);
             if (rol == null) {
                 ctx.status(HttpCode.UNAUTHORIZED).json(ApiRespuesta.error("Usuario inválido o inactivo."));
                 return;
@@ -107,6 +112,18 @@ public class AuthController {
             ctx.status(401).json(ApiRespuesta.error("Refresh token expirado o inválido."));
         }
     }
+    
+    public void obtenerUsuario(Context ctx) {
+        Long id = ctx.pathParamAsClass("id", Long.class).get();
+
+        EntidadDinamica usuario = usuarioDao.obtenerPorId(id);
+        if (usuario == null) {
+            ctx.status(HttpCode.NOT_FOUND).json(ApiRespuesta.error("Usuario no encontrado."));
+            return;
+        }
+
+        ctx.status(HttpCode.OK).json(ApiRespuesta.ok(usuario));
+    }
 
     /**
      * Registrar cuenta de usuario en la base de datos
@@ -114,27 +131,28 @@ public class AuthController {
      * @param ctx
      */
     public void registrar(Context ctx) {
-        Map<String, String> datosUsuario = ctx.bodyAsClass(Map.class);
-        String email = datosUsuario.get("email");
-        String password = datosUsuario.get("password");
-        String rol = datosUsuario.get("rol");
+        Map<String, Object> datosUsuario = ctx.bodyAsClass(Map.class);
+        String email = (String) datosUsuario.get("email");
+        String password = (String) datosUsuario.get("password");
+        Object rol = datosUsuario.get("rol");
 
         if (email == null || password == null || rol == null) {
             throw new ValidacionException("Todos los campos (email, password, rol) son obligatorios.");
         }
 
+        int rolId = Integer.parseInt(rol.toString());
         // Encriptar la contraseña
         String passwordHash = BCrypt.hashpw(password, BCrypt.gensalt());
 
         // Guardar en DB
-        long id = usuarioDao.crearUsuario(email, passwordHash, rol);
+        long id = usuarioDao.crearUsuario(email, passwordHash, rolId);
 
         ctx.status(HttpCode.CREATED).json(ApiRespuesta.ok("Usuario registrado con ID: " + id));
     }
 
     public void modificarUsuario(Context ctx) {
         Long id = ctx.pathParamAsClass("id", Long.class).get();
-        Map<String, String> datos = ctx.bodyAsClass(Map.class);
+        Map<String, Object> datos = ctx.bodyAsClass(Map.class);
 
         // Buscar el usuario actual
         EntidadDinamica usuarioActual = usuarioDao.obtenerPorId(id);
@@ -143,12 +161,24 @@ public class AuthController {
         }
 
         // Si el dato viene en el body, se utiliza; si no, se utiliza el de la db
-        String email = datos.getOrDefault("email", (String) usuarioActual.get("email"));
-        String rol = datos.getOrDefault("rol", (String) usuarioActual.get("rol"));
-        String activoStr = datos.getOrDefault("activo", String.valueOf(usuarioActual.get("activo")));
+        String email = datos.containsKey("email")
+                ? (String) datos.get("email") : (String) usuarioActual.get("email");
+        int rolId;
+        if (datos.containsKey("rol")) {
+            rolId = Integer.parseInt(datos.get("rol").toString());
+        } else {
+            rolId = (int) usuarioActual.get("rol_id"); 
+        }
+        int activo;
+        if (datos.containsKey("activo")) {
+            Object val = datos.get("activo");
+            activo = (val instanceof Boolean) ? ((boolean) val ? 1 : 0) : Integer.parseInt(val.toString());
+        } else {
+            activo = (int) usuarioActual.get("activo");
+        }
 
         // Actualizar datos
-        usuarioDao.actualizarUsuario(id, email, rol, Integer.parseInt(activoStr));
+        usuarioDao.actualizarUsuario(id, email, rolId, activo);
         ctx.status(HttpCode.OK).json(ApiRespuesta.ok("Usuario actualizado."));
     }
 

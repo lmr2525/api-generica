@@ -4,7 +4,6 @@ import apigenerica.TipoDatoMapper;
 import apigenerica.config.AppConfig;
 import apigenerica.config.ConexionMysql;
 import apigenerica.dao.BaseDao;
-import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;

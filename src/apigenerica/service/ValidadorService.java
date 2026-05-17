@@ -5,6 +5,7 @@
 package apigenerica.service;
 
 import apigenerica.dao.MetaDao;
+import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
 import apigenerica.model.ColumnaConfig;
 import apigenerica.model.ApiRequest;
@@ -62,6 +63,9 @@ public class ValidadorService {
      * @param nombreColumna Nombre de la columna a validar
      */
     public void validarColumnaNoExiste(TablaConfig tabla, String nombreColumna) {
+        if (tabla == null) {
+            throw new RecursoNoEncontradoException("No se puede validar la columna porque la tabla no existe.");
+        }
         boolean existe = tabla.getColumnas().stream()
                 .anyMatch(c -> c.getNombre().equalsIgnoreCase(nombreColumna));
         if (existe) {
@@ -138,6 +142,12 @@ public class ValidadorService {
             if (!existeCol) {
                 throw new ValidacionException("La columna FK '" + rel.getFkColumna()
                         + "' no existe en la tabla '" + origen.getNombreAmigable() + "'");
+            }
+            
+            // Validar que la tabla destino exista
+            if (metaDao.getConfiguracion(rel.getTablaDestino()) == null) {
+                throw new ValidacionException("La tabla destino '" + rel.getTablaDestino() 
+                        + "' no existe en el sistema.");
             }
         }
     } 

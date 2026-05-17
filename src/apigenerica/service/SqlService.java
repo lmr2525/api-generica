@@ -107,7 +107,7 @@ public class SqlService {
         if (sqlCol.isEmpty()) {
             throw new IllegalArgumentException("Definición de columna no válida.");
         }
-        return String.format("ALTER TABLE `%s` ADD COLUMN `%s`", tabla, sqlCol);
+        return String.format("ALTER TABLE `%s` ADD COLUMN %s", tabla, sqlCol);
     }
 
     /**
@@ -138,7 +138,7 @@ public class SqlService {
         if (definicion.isEmpty()) {
             throw new IllegalArgumentException("Definición de columna no válida.");
         }
-        return String.format("ALTER TABLE `%s` MODIFY COLUMN `%s`", tabla, definicion);
+        return String.format("ALTER TABLE `%s` MODIFY COLUMN %s", tabla, definicion);
     }
  
     /**

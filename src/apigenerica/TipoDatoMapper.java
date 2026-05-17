@@ -12,7 +12,8 @@ import java.time.LocalDateTime;
 import org.mindrot.jbcrypt.BCrypt;
 
 /**
- * @author Grupo1 Convertir tipo de dato del formulario a SQL y viceversa;
+ * @author Grupo1 
+ * Convertir tipo de dato del formulario a SQL y viceversa;
  * convertir a tipo de dato Java
  */
 public class TipoDatoMapper {
