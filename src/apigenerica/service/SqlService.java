@@ -145,16 +145,20 @@ public class SqlService {
      * Construye una sentencia ALTER TABLE RENAME COLUMN
      * 
      * @param tabla Nombre de la tabla que se modificará
-     * @param nombreColumna Nombre actual de la columna
-     * @param nuevoNombre Nombre nuevo de la columna
+     * @param nombreActual Nombre actual de la columna
+     * @param nuevaConfig
      * @return 
      */
-    public String generarRenameColumnSql(String tabla, String nombreColumna, String nuevoNombre) {
+    public String generarRenameColumnSql(String tabla, String nombreActual, ColumnaConfig nuevaConfig) {
         validador.validarNombre(tabla);
-        validador.validarNombre(nombreColumna);
-        validador.validarNombre(nuevoNombre);
+        validador.validarNombre(nombreActual);
+        validador.validarNombre(nuevaConfig.getNombre());
         
-        return String.format("ALTER TABLE `%s` RENAME COLUMN `%s` TO `%s`", tabla, nombreColumna, nuevoNombre);
+        String sqlCol = construirDefinicionColumna(nuevaConfig);
+        if (sqlCol.isEmpty()) {
+            throw new IllegalArgumentException("Definición de columna no válida.");
+        }
+        return String.format("ALTER TABLE `%s` CHANGE COLUMN `%s` %s", tabla, nombreActual, sqlCol);
     }
 
     /**

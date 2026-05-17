@@ -256,17 +256,30 @@ public class MetaService {
         validador.validarColumnaNoExiste(config, nuevaCol.getNombre());
         validador.validarProteccionInterna(nuevaCol.getNombre());
 
-        // Crear columna
-        String sql = sqlService.generarAddColumnSql(nombreTabla, nuevaCol);
-        sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
-
         // Actualizar metadatos
         if ("CONTRASENA".equalsIgnoreCase(nuevaCol.getTipo())) {
             nuevaCol.setContrasena(true);
             nuevaCol.setVisible(false);
         }
-        config.getColumnas().add(nuevaCol);
-        metaDao.guardarConfiguracion(config);
+
+        if ("ARCHIVO".equalsIgnoreCase(nuevaCol.getTipo())) {
+            nuevaCol.setArchivo(true);
+        }
+        try {
+            // Agregar columna
+            String sql = sqlService.generarAddColumnSql(nombreTabla, nuevaCol);
+            sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
+
+            // Actualizar metadatos en la base de datos del sistema
+            metaDao.guardarNuevaColumna(config.getId(), nuevaCol);
+
+        } catch (SQLException e) {
+            // Si falla el SQL de MySQL
+            throw new BaseDatosException("Error físico al añadir la columna: " + e.getMessage(), e);
+        } catch (Exception e) {
+            // Si falla el guardado de metadatos
+            throw new RuntimeException("Columna creada pero error al actualizar metadatos: " + e.getMessage());
+        }
     }
 
     /**
@@ -302,23 +315,30 @@ public class MetaService {
      * @throws SQLException
      */
     public void renombrarColumna(String nombreTabla, String nombreViejo, String nombreNuevo) throws SQLException {
-        TablaConfig config = metaDao.getConfiguracion(nombreTabla);
-
+        TablaConfig tabla = metaDao.getConfiguracion(nombreTabla);
+        ColumnaConfig col = tabla.getColumnas().stream()
+                .filter(c -> c.getNombre().equalsIgnoreCase(nombreViejo))
+                .findFirst()
+                .orElseThrow(() -> new RecursoNoEncontradoException("Columna no encontrada"));
+        
+        // Cambiar nombre en los metadatos
+        col.setNombre(nombreNuevo);
+        
         // Validaciones
         validador.validarProteccionInterna(nombreViejo);
         validador.validarNombre(nombreNuevo);
 
         // Renombrar columna
-        String sql = sqlService.generarRenameColumnSql(nombreTabla, nombreViejo, nombreNuevo);
+        String sql = sqlService.generarRenameColumnSql(nombreTabla, nombreViejo, col);
         sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
 
         // Persistencia de metadatos
-        config.getColumnas().stream()
+        tabla.getColumnas().stream()
                 .filter(c -> c.getNombre().equalsIgnoreCase(nombreViejo))
                 .findFirst()
                 .ifPresent(c -> c.setNombre(nombreNuevo));
 
-        metaDao.guardarConfiguracion(config);
+        metaDao.guardarConfiguracion(tabla);
     }
 
     /**

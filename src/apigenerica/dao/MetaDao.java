@@ -383,6 +383,34 @@ public class MetaDao {
         }
         return uuids;
     }
+    
+    public void guardarNuevaColumna(Long tablaId, ColumnaConfig col) throws SQLException {
+        String sql = "INSERT INTO erp_meta_columnas (tabla_id, nombre, tipo, nullable, " +
+                     "autoincremental, es_visible, es_sensible, es_contrasena, " +
+                     "es_archivo, unico, valor_defecto) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, tablaId);
+            stmt.setString(2, col.getNombre());
+            stmt.setString(3, col.getTipo());
+            stmt.setBoolean(4, col.isNullable());
+            stmt.setBoolean(5, col.isAutoincremental());
+            stmt.setBoolean(6, col.isVisible());
+            stmt.setBoolean(7, col.isSensible());
+            stmt.setBoolean(8, col.isContrasena());
+            stmt.setBoolean(9, col.isArchivo());
+            stmt.setBoolean(10, col.isUnico());
+            stmt.setObject(11, col.getValorDefecto());
+
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Error al insertar columna en metadatos: " + e.getMessage());
+            throw e;
+        }
+    }
 
     /**
      * Busca las columnas que contienen un archivo: tiene el metadato isArchivo
