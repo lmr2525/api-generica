@@ -4,162 +4,78 @@
  */
 package apigenerica.service;
 
-import apigenerica.model.ColumnaConfig;
-import apigenerica.TipoDatoMapper;
-import apigenerica.config.ConexionMysql;
+import apigenerica.config.AppConfig;
 import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
+import apigenerica.excepciones.RecursoNoEncontradoException;
+import apigenerica.excepciones.ValidacionException;
+import apigenerica.model.ColumnaConfig;
+import apigenerica.model.RelacionConfig;
 import apigenerica.model.TablaConfig;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * @author Grupo1
- * Operaciones con los metadatos
+ * @author Grupo1 Operaciones con los metadatos
  */
 public class MetaService {
 
     private final MetaDao metaDao;
     private final ValidadorService validador;
+    private final SqlService sqlService;
+    private final FicheroService ficheroService;
 
-    public MetaService(MetaDao metaDao, ValidadorService validador) {
+    public MetaService(MetaDao metaDao, ValidadorService validador, SqlService sqlService,
+            FicheroService ficheroService) {
         this.metaDao = metaDao;
         this.validador = validador;
+        this.sqlService = sqlService;
+        this.ficheroService = ficheroService;
     }
 
     /**
-     * Guardar configuración si ya se tiene el objeto
-     * TablaConfig (Formulario)
-     * 
-     * @param tabla 
+     * Guardar metadatos
+     *
+     * @param tabla Metadatos a guardar
      */
     public void guardarConfiguracion(TablaConfig tabla) {
         // Generar nombre amigable si no lo tiene
         if (tabla.getNombreAmigable() == null || tabla.getNombreAmigable().trim().isEmpty()) {
             tabla.setNombreAmigable(crearNombreAmigable(tabla.getNombreLogico()));
         }
-        // Guardar objeto
-        metaDao.guardarConfiguracion(tabla);
-    }
-    
-    /**
-     * Extrae el nombre de la tabla de una sentencia SQL, lee sus metadatos
-     * desde MySQL y los persiste en db4o. (Script SQL)
-     * Solo procesa sentencias CREATE TABLE.
-     *
-     * @param baseDatos Base de datos donde se creó la tabla
-     * @param sql Sentencia SQL ejecutada
-     * @return TablaConfig creado, o null si no era un CREATE TABLE
-     * @throws java.sql.SQLException
-     */
-    public TablaConfig guardarConfiguracion(String baseDatos, String sql) throws SQLException {
-        // Extraer el nombre de la tabla de la sentencia SQL usando Regex
-        String nombreLogico = extraerNombreTabla(sql);
 
-        // Si no es un CREATE TABLE, devolver null
-        if (nombreLogico == null) return null; 
-
-        try {
-            // Leer los metadatos desde MySQL
-            List<ColumnaConfig> columnas = leerMetadatosSql(baseDatos, nombreLogico);
-            // Construir el objeto TablaConfig
-            TablaConfig tabla = new TablaConfig();
-            tabla.setNombreDb(baseDatos);
-            tabla.setNombreLogico(nombreLogico);
-            tabla.setColumnas(columnas); 
-            // Persistir metadatos
-            guardarConfiguracion(tabla);
-            return tabla;
-        } catch(SQLException e) {
-            throw new BaseDatosException("Error al guardar la configuración de '" + nombreLogico + "'.", e);
-        }
-    }
-    
-    /**
-    * Extrae el nombre de la tabla de una sentencia CREATE TABLE.
-    * Soporta nombres con y sin comillas invertidas.
-    *
-    * @param sql Sentencia SQL
-    * @return Nombre de la tabla, o null si no es un CREATE TABLE
-    */
-    private String extraerNombreTabla(String sql) {
-        // Busca "CREATE TABLE nombre" ignorando mayúsculas/minúsculas y comillas invertidas `
-        Pattern pattern = Pattern.compile("CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?`?(\\w+)`?",
-                Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(sql);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null;
-    }
-  
-    /**
-     * Realiza una consulta de los metadatos de una tabla de MySQL.
-     *
-     * @param baseDatos Nombre de la base de datos en la que 
-     * buscar la tabla
-     * @param nombreLogico Nombre de la tabla en MySQL
-     */
-    private List<ColumnaConfig> leerMetadatosSql(String baseDatos, String nombreLogico) throws SQLException {
-        try (Connection conn = ConexionMysql.getConexion()) {
-            DatabaseMetaData meta = conn.getMetaData();
-            
-            // Obtener columnas, primary key y foreign keys
-            try (ResultSet dbCols = meta.getColumns(baseDatos, null, nombreLogico, null);
-             ResultSet dbPk = meta.getPrimaryKeys(baseDatos, null, nombreLogico);
-             ResultSet dbFks = meta.getImportedKeys(baseDatos, null, nombreLogico)) {
-
-                // Almacenar primary key
-                String columnaPk = dbPk.next() ? dbPk.getString("COLUMN_NAME") : "";
-                List<ColumnaConfig> cols = new ArrayList<>();
-            
-                // Guardar otros cols
-                while (dbCols.next()) {
-                    // visible=true y contrasena=false por defecto (definido en ColumnaConfig)
-                    ColumnaConfig col = new ColumnaConfig();
-                    // Nombre de la columna
-                    String nombreCol = dbCols.getString("COLUMN_NAME");
-                    col.setNombre(nombreCol);
-                    // Es pk: true, no es pk: false
-                    col.setPk(nombreCol.equals(columnaPk));
-                    // Es nullable: true, no es nullable: false
-                    col.setNullable(dbCols.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
-                    // Tipo de dato
-                    col.setTipo(TipoDatoMapper.toTexto(dbCols.getInt("DATA_TYPE")));
-                    // Es autoincremental: true, no es autoincremental: false
-                    col.setAutoincremental("YES".equalsIgnoreCase(dbCols.getString("IS_AUTOINCREMENT")));
-                    cols.add(col);
+        // Marcar columnas de contraseña y archivo automáticamente
+        if (tabla.getColumnas() != null) {
+            for (ColumnaConfig col : tabla.getColumnas()) {
+                if ("CONTRASENA".equalsIgnoreCase(col.getTipo())) {
+                    col.setContrasena(true);
+                    col.setVisible(false);
                 }
-                
-                // Almacenar foreign keys
-                while (dbFks.next()) {
-                    String columna = dbFks.getString("FKCOLUMN_NAME");
-                    String tablaRef = dbFks.getString("PKTABLE_NAME");
-                    String colRef = dbFks.getString("PKCOLUMN_NAME");
-                    // Buscar columna y almacenar en ella los datos de fk
-                    cols.stream()
-                    .filter(c -> c.getNombre().equals(columna))
-                    .findFirst()
-                    .ifPresent(c -> {
-                        c.setReferenciaTabla(tablaRef);
-                        c.setReferenciaCol(colRef);
-                    });
+
+                if ("ARCHIVO".equalsIgnoreCase(col.getTipo())) {
+                    col.setArchivo(true);
                 }
-                return cols;
             }
         }
+
+        try {
+            // Guardar objeto
+            metaDao.guardarConfiguracion(tabla);
+        } catch (Exception e) {
+            e.printStackTrace();
+            if (e.getCause() != null) {
+                e.getCause().printStackTrace();
+            }
+            throw new BaseDatosException("Error al guardar configuración de '" + tabla.getNombreLogico() + "'.", e);
+        }
     }
-    
+
     /**
-     * Borra la configuración de la tabla en db4o.
+     * Borra los metadatos de la tabla
      *
-     * @param nombreLogico Nombre de la tabla.
+     * @param nombreLogico Nombre de la tabla
      */
     public void eliminarConfiguracion(String nombreLogico) {
         metaDao.eliminarConfiguracion(nombreLogico);
@@ -167,7 +83,7 @@ public class MetaService {
 
     /**
      * Construye el nombre amigable a partir del nombre lógico. Ejemplo:
-     * datos_clientes -- Datos clientes
+     * datos_clientes genera el nombre Datos clientes
      *
      * @param nombreLogico Nombre lógico de la tabla
      * @return Nombre amigable
@@ -177,5 +93,300 @@ public class MetaService {
         // Construir nombre amigable
         String nombreAmigable = nombreLogico.replace("_", " ");
         return nombreAmigable.substring(0, 1).toUpperCase() + nombreAmigable.substring(1);
+    }
+
+    /**
+     * Obtiene las relaciones entre una tabla principal y una o más tablas
+     * secundarias. Busca la configuración de la tabla principal (metadatos) y
+     * con ella su lista de relaciones. Procesa una lista de includes, separando
+     * cada elemento en un array,
+     *
+     * @param tablaPrincipal Tabla padre
+     * @param includes Cadena de texto con las tablas secundarias
+     * @return Lista de relaciones
+     */
+    public List<RelacionConfig> getRelaciones(String tablaPrincipal, String includes) {
+        if (includes == null || includes.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Dividir los includes
+        String[] tablasSolicitadas = includes.replace(" ", "").split(",");
+        List<String> listaSolicitadas = Arrays.asList(tablasSolicitadas);
+
+        List<RelacionConfig> relacionesFinales = new ArrayList<>();
+
+        // Obtener la configuración principal (Padres de la tabla)
+        TablaConfig config = metaDao.getConfiguracion(tablaPrincipal);
+        if (config != null && config.getRelaciones() != null) {
+            for (RelacionConfig rel : config.getRelaciones()) {
+                // Seleccionar relaciones con la tablas secundarias especificadas
+                if (listaSolicitadas.contains(rel.getTablaDestino())) {
+                    relacionesFinales.add(rel);
+                }
+            }
+        }
+
+        // Obtener las Hijas (Tablas que apuntan a la principal)
+        List<RelacionConfig> relacionesHijas = metaDao.getRelacionesHijas(tablaPrincipal);
+        if (relacionesHijas != null) {
+            for (RelacionConfig rel : relacionesHijas) {
+                // Seleccionar relaciones con la tabla principal
+                if (listaSolicitadas.contains(rel.getTablaOrigen())) {
+                    relacionesFinales.add(rel);
+                }
+            }
+        }
+        return relacionesFinales;
+    }
+
+    /**
+     * Obtiene todas las relaciones internas que existen entre una lista de
+     * tablas. Ideal para operaciones transaccionales donde necesitamos inyectar
+     * FKs.
+     *
+     * @param tablas Lista de tablas involucradas en la transacción
+     * @return Lista de relaciones pertinentes entre estas tablas
+     */
+    public List<RelacionConfig> getRelacionesEntreTablas(List<String> tablas) {
+        List<RelacionConfig> relacionesFinales = new ArrayList<>();
+
+        if (tablas == null || tablas.isEmpty()) {
+            return relacionesFinales;
+        }
+
+        // Revisar cada tabla de la lista
+        for (String tablaOrigen : tablas) {
+            TablaConfig config = metaDao.getConfiguracion(tablaOrigen);
+
+            if (config != null && config.getRelaciones() != null) {
+                for (RelacionConfig rel : config.getRelaciones()) {
+                    // Si la tabla a la que apunta la FK TAMBIÉN está en la lista de inserción
+                    if (tablas.contains(rel.getTablaDestino())) {
+                        relacionesFinales.add(rel);
+                    }
+                }
+            }
+        }
+        return relacionesFinales;
+    }
+
+    /**
+     * Devuelve los metadatos de una tabla
+     *
+     * @param nombreLogico Nombre de la tabla en MySQL
+     * @return Metadatos de la tabla
+     */
+    public TablaConfig getConfiguracion(String nombreLogico) {
+        TablaConfig config = metaDao.getConfiguracion(nombreLogico);
+        if (config == null) {
+            throw new RecursoNoEncontradoException("Tabla no registrada: " + nombreLogico);
+        }
+        return config;
+    }
+
+    /**
+     * Devuelve la lista de todas las tablas registradas para una base de datos.
+     *
+     * @param moduloId Id del módulo cuyas tablas se quieren mostrar
+     * @param sinModulo true si la tabla no pertenece a un módulo
+     * @return Lista de metadatos de tablas
+     */
+    public List<TablaConfig> listarTablas(Long moduloId, Boolean sinModulo) {
+        // Tablas sin módulo
+        if (Boolean.TRUE.equals(sinModulo)) {
+            return metaDao.listarTablasSinModulo();
+        }
+        // Tablas de un módulo específico
+        if (moduloId != null) {
+            return metaDao.listarTablasPorModulo(moduloId);
+        }
+        // Todas las tablas
+        return metaDao.getTodas();
+    }
+
+    /**
+     * Elimina una tabla
+     *
+     * @param nombreLogico Nombre de la base de datos en MySQL
+     * @throws SQLException
+     */
+    public void eliminarTabla(String nombreLogico) throws SQLException {
+        // Validar si hay tablas que dependan de esta tabla
+        List<RelacionConfig> relaciones = metaDao.getRelacionesHijas(nombreLogico);
+        if (!relaciones.isEmpty()) {
+            // Hay tablas hijas y el borrado fallará
+            throw new ValidacionException("No se puede eliminar la tabla porque otras tablas "
+                    + "dependen de ella.");
+        }
+
+        List<String> listaUuids = metaDao.buscarFicherosAsociados(nombreLogico);
+
+        // Eliminar tabla
+        String sql = sqlService.generarDropSql(nombreLogico);
+        sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
+
+        // Borrar metadatos
+        metaDao.eliminarConfiguracion(nombreLogico);
+        // Eliminar ficheros asociados
+        for (String uuid : listaUuids) {
+            ficheroService.eliminar(uuid);
+        }
+    }
+
+    /**
+     * Devuelve la configuración completa de una tabla (columnas y relaciones).
+     *
+     * @param nombreLogico Nombre de la tabla en MySQL
+     * @return Metadatos de la tabla
+     */
+    public TablaConfig obtenerDetalleTabla(String nombreLogico) {
+        return metaDao.getConfiguracion(nombreLogico);
+    }
+
+    /**
+     * Agrega una columna a una tabla
+     *
+     * @param nombreTabla Nombre de la tabla en MySQL
+     * @param nuevaCol Metadatos de la nueva columna
+     * @throws SQLException
+     */
+    public void agregarColumna(String nombreTabla, ColumnaConfig nuevaCol) throws SQLException {
+        TablaConfig config = metaDao.getConfiguracion(nombreTabla);
+        validador.validarColumnaNoExiste(config, nuevaCol.getNombre());
+        validador.validarProteccionInterna(nuevaCol.getNombre());
+
+        // Actualizar metadatos
+        if ("CONTRASENA".equalsIgnoreCase(nuevaCol.getTipo())) {
+            nuevaCol.setContrasena(true);
+            nuevaCol.setVisible(false);
+        }
+
+        if ("ARCHIVO".equalsIgnoreCase(nuevaCol.getTipo())) {
+            nuevaCol.setArchivo(true);
+        }
+        try {
+            // Agregar columna
+            String sql = sqlService.generarAddColumnSql(nombreTabla, nuevaCol);
+            sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
+
+            // Actualizar metadatos en la base de datos del sistema
+            metaDao.guardarNuevaColumna(config.getId(), nuevaCol);
+
+        } catch (SQLException e) {
+            // Si falla el SQL de MySQL
+            throw new BaseDatosException("Error físico al añadir la columna: " + e.getMessage(), e);
+        } catch (Exception e) {
+            // Si falla el guardado de metadatos
+            throw new RuntimeException("Columna creada pero error al actualizar metadatos: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Elimina la columna de una tabla
+     *
+     * @param nombreTabla Nombre de la tabla en MySQL
+     * @param nombreColumna Nombre de la columna a eliminar
+     * @throws SQLException
+     */
+    public void eliminarColumna(String nombreTabla, String nombreColumna) throws SQLException {
+        TablaConfig config = metaDao.getConfiguracion(nombreTabla);
+
+        // Validaciones
+        validador.validarProteccionInterna(nombreColumna);
+        validador.validarColumnaExiste(config, nombreColumna);
+
+        // Eliminar columna
+        String sql = sqlService.generarDropColumnSql(nombreTabla, nombreColumna);
+        sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
+
+        // Persistencia de metadatos
+        config.getColumnas().removeIf(c -> c.getNombre().equalsIgnoreCase(nombreColumna));
+        metaDao.guardarConfiguracion(config);
+    }
+
+    /**
+     * Renombra una columna
+     *
+     * @param nombreTabla Nombre de la tabla en MySQL
+     * @param nombreViejo Nombre actual de la columna
+     * @param nombreNuevo Nombre por el que se reemplazará el nombre de la
+     * columna
+     * @throws SQLException
+     */
+    public void renombrarColumna(String nombreTabla, String nombreViejo, String nombreNuevo) throws SQLException {
+        TablaConfig tabla = metaDao.getConfiguracion(nombreTabla);
+        ColumnaConfig col = tabla.getColumnas().stream()
+                .filter(c -> c.getNombre().equalsIgnoreCase(nombreViejo))
+                .findFirst()
+                .orElseThrow(() -> new RecursoNoEncontradoException("Columna no encontrada"));
+        
+        // Cambiar nombre en los metadatos
+        col.setNombre(nombreNuevo);
+        
+        // Validaciones
+        validador.validarProteccionInterna(nombreViejo);
+        validador.validarNombre(nombreNuevo);
+
+        // Renombrar columna
+        String sql = sqlService.generarRenameColumnSql(nombreTabla, nombreViejo, col);
+        sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
+
+        // Persistencia de metadatos
+        tabla.getColumnas().stream()
+                .filter(c -> c.getNombre().equalsIgnoreCase(nombreViejo))
+                .findFirst()
+                .ifPresent(c -> c.setNombre(nombreNuevo));
+
+        metaDao.guardarConfiguracion(tabla);
+    }
+
+    /**
+     * Modifica una columna de una tabla
+     *
+     * @param nombreTabla Nombre de la tabla
+     * @param colModificada Nombre de la columna
+     */
+    public void modificarColumna(String nombreTabla, ColumnaConfig colModificada) {
+        TablaConfig config = metaDao.getConfiguracion(nombreTabla);
+        validador.validarColumnaExiste(config, colModificada.getNombre());
+        validador.validarProteccionInterna(colModificada.getNombre());
+
+        // Modificar columna
+        String sql = sqlService.generarModifyColumnSql(nombreTabla, colModificada);
+        try {
+            sqlService.ejecutarSql(AppConfig.DB_CLIENTE, sql);
+
+            // Persistir metadatos
+            for (int i = 0; i < config.getColumnas().size(); i++) {
+                if (config.getColumnas().get(i).getNombre().equalsIgnoreCase(colModificada.getNombre())) {
+                    config.getColumnas().set(i, colModificada);
+                    break;
+                }
+            }
+            metaDao.guardarConfiguracion(config);
+        } catch (SQLException e) {
+            // Manejo específico de errores de MySQL al hacer ALTER TABLE
+            procesarErrorMysql(e);
+        }
+    }
+
+    private void procesarErrorMysql(SQLException e) {
+        int errorCode = e.getErrorCode();
+
+        switch (errorCode) {
+            case 1138: // Cambiar columna a NOT NULL si ya hay nulos
+                throw new ValidacionException("No se puede hacer la columna obligatoria (NOT NULL) porque ya existen registros con valores vacíos.");
+            case 1265: // Datos truncados
+            case 1292: // Valor incorrecto
+            case 1366: // Valor incorrecto de integer/char
+                throw new ValidacionException("No se puede cambiar el tipo de dato. Existen registros incompatibles con el nuevo formato.");
+            case 1060: // Nombre de columna repetido
+                throw new ValidacionException("El nombre de la columna ya está en uso.");
+            case 1025: // Error de Foreign Key al intentar cambiar tipo de dato
+                throw new ValidacionException("No se puede modificar la columna porque es parte de una relación (Foreign Key). Elimine la relación primero.");
+            default: // Error genérico
+                throw new BaseDatosException("Error en la base de datos al modificar la tabla: " + e.getMessage(), e);
+        }
     }
 }

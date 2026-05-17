@@ -4,6 +4,8 @@
  */
 package apigenerica.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * @author Grupo1
  * Metadatos de las columnas de la base de datos
@@ -12,18 +14,20 @@ public class ColumnaConfig {
     Long id;
     String nombre;
     String tipo;
-    boolean pk;
     boolean nullable = true;
-    boolean contrasena = false;
+    @JsonProperty("es_contrasena")
+    boolean contrasena = false; // Hashear antes de insertar en MySQL
+    @JsonProperty("es_visible")
     boolean visible = true; // Para el DTO
+    @JsonProperty("es_sensible")
+    boolean sensible = false; // Enviar dato a Paradox
+    @JsonProperty("es_archivo")
+    boolean archivo = false; // Enviar dato a db4o
     boolean autoincremental;
     boolean unico;
     Object valorDefecto;
-    
-    // Relaciones (foreign key)
-    String referenciaTabla;
-    String referenciaCol;
 
+    // Getters y setters
     public Long getId() {
         return id;
     }
@@ -46,14 +50,6 @@ public class ColumnaConfig {
 
     public void setTipo(String tipo) {
         this.tipo = tipo;
-    }
-
-    public boolean isPk() {
-        return pk;
-    }
-
-    public void setPk(boolean pk) {
-        this.pk = pk;
     }
 
     public boolean isNullable() {
@@ -80,6 +76,22 @@ public class ColumnaConfig {
         this.visible = visible;
     }
 
+    public boolean isSensible() {
+        return sensible;
+    }
+
+    public void setSensible(boolean sensible) {
+        this.sensible = sensible;
+    }
+
+    public boolean isArchivo() {
+        return archivo;
+    }
+
+    public void setArchivo(boolean archivo) {
+        this.archivo = archivo;
+    }
+
     public boolean isAutoincremental() {
         return autoincremental;
     }
@@ -102,21 +114,5 @@ public class ColumnaConfig {
 
     public void setValorDefecto(String valorDefecto) {
         this.valorDefecto = valorDefecto;
-    }
-
-    public String getReferenciaTabla() {
-        return referenciaTabla;
-    }
-
-    public void setReferenciaTabla(String referenciaTabla) {
-        this.referenciaTabla = referenciaTabla;
-    }
-
-    public String getReferenciaCol() {
-        return referenciaCol;
-    }
-
-    public void setReferenciaCol(String referenciaCol) {
-        this.referenciaCol = referenciaCol;
     }
 }
