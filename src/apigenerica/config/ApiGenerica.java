@@ -29,15 +29,6 @@ import apigenerica.service.ValidadorService;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.Javalin;
 import io.javalin.http.ForbiddenResponse;
-import io.javalin.http.UploadedFile;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * Punto de entrada de la API genérica del ERP. Inicializa conexiones,
@@ -166,9 +157,9 @@ public class ApiGenerica {
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
         app.post("/api/auth/refresh", ctx -> authCtrl.refresh(ctx));
         app.post("/api/auth/signup", ctx -> authCtrl.registrar(ctx));
-        app.get("/api/metadata/usuarios/{id}", ctx -> authCtrl.obtenerUsuario(ctx));
-        app.put("/api/metadata/usuarios/{id}", ctx -> authCtrl.modificarUsuario(ctx));
-        app.delete("/api/metadata/usuarios/{id}", ctx -> authCtrl.eliminar(ctx));
+        app.get("/api/auth/usuarios/{id}", ctx -> authCtrl.obtenerUsuario(ctx));
+        app.put("/api/auth/usuarios/{id}", ctx -> authCtrl.modificarUsuario(ctx));
+        app.delete("/api/auth/usuarios/{id}", ctx -> authCtrl.eliminar(ctx));
 
         // ── Endpoints de configuración ERP ───────────────────────────
         app.get("/api/metadata/config", ctx -> configCtrl.getConfig(ctx));
@@ -181,9 +172,8 @@ public class ApiGenerica {
 
         // ── Endpoints de roles ─────────────────────────────────────
         app.get("/api/metadata/roles", ctx -> moduloCtrl.getAll(ctx));
-        app.post("/api/metadata/modulos", ctx -> moduloCtrl.create(ctx));
-        app.delete("/api/metadata/modulos/{id}", ctx -> moduloCtrl.delete(ctx));
-
+        app.post("/api/metadata/roles", ctx -> moduloCtrl.create(ctx));
+        
         // Endpoints de ficheros ─────────────────────────────────
         app.get("/test", ctx -> {
             java.nio.file.Path ruta = java.nio.file.Paths.get("test.html");
@@ -280,6 +270,9 @@ public class ApiGenerica {
         }
         if (path.contains("/roles")) {
             return "erp_roles";
+        }
+        if (path.startsWith("/api/ficheros")) {
+            return "erp_ficheros";
         }
 
         return null; // Ruta desconocida
