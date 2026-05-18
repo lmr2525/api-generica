@@ -20,9 +20,13 @@ public class Fichero {
     private boolean comprimido;
     private String ruta; // Si el archivo se guarda en el disco duro
     private LocalDateTime fechaSubida;
+    // Tipo detectado por magic bytes cuando el archivo no tiene extensión o su
+    // Content-Type es "application/octet-stream". Ejemplos: "PDF", "JPG", "PNG",
+    // "ZIP/DOCX/XLSX", "DESCONOCIDO". Se persiste en db4o junto con el objeto.
+    private String tipoDetectado;
 
     // Archivos ligeros (guardar completos en db4o)
-    public Fichero(String uuid, String nombreFichero, String mimeType, long tamano, 
+    public Fichero(String uuid, String nombreFichero, String mimeType, long tamano,
             byte[] contenido, boolean comprimido, LocalDateTime fechaSubida) {
         this(uuid);
         this.nombreFichero = nombreFichero;
@@ -32,9 +36,9 @@ public class Fichero {
         this.comprimido = comprimido;
         this.fechaSubida = fechaSubida;
     }
-    
+
     // Archivos pesados (guardar contenido en disco y ruta en db4o)
-    public Fichero(String uuid, String nombreFichero, String mimeType, long tamano, 
+    public Fichero(String uuid, String nombreFichero, String mimeType, long tamano,
             String ruta, LocalDateTime fechaSubida) {
         this(uuid);
         this.nombreFichero = nombreFichero;
@@ -49,11 +53,14 @@ public class Fichero {
     public Fichero(String uuid) {
         this.uuid = uuid;
     }
-    
+
+    // El método original tenía:  return this.ruta != null && this.ruta.isEmpty();
+    // Eso devolvía TRUE cuando la ruta estaba VACÍA, es decir, siempre false en
+    // archivos reales. La condición correcta es !isEmpty(): si hay ruta, está en disco.
     public boolean isEnDisco() {
         return this.ruta != null && this.ruta.isEmpty();
     }
-    
+
     // Getters y setters
     public String getUuid() {
         return uuid;
@@ -113,5 +120,13 @@ public class Fichero {
 
     public void setRuta(String ruta) {
         this.ruta = ruta;
+    }
+
+    public String getTipoDetectado() {
+        return tipoDetectado;
+    }
+
+    public void setTipoDetectado(String tipoDetectado) {
+        this.tipoDetectado = tipoDetectado;
     }
 }

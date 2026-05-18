@@ -3,8 +3,11 @@ package apigenerica.config;
 import apigenerica.controller.AuthController;
 import apigenerica.controller.BaseController;
 import apigenerica.controller.ConfigController;
+import apigenerica.controller.FicheroController;
+import apigenerica.controller.LogController;
 import apigenerica.controller.MetaController;
 import apigenerica.controller.ModuloController;
+import apigenerica.controller.RolController;
 import apigenerica.dao.BaseDao;
 import apigenerica.dao.MetaDao;
 import apigenerica.dao.RolDao;
@@ -16,15 +19,25 @@ import apigenerica.model.ApiRespuesta;
 import apigenerica.dao.UsuarioDao;
 import apigenerica.service.FicheroService;
 import apigenerica.service.JwtService;
+import apigenerica.service.LogService;
 import apigenerica.service.MetaService;
 import apigenerica.service.OrderService;
 import apigenerica.service.PermisoService;
+import apigenerica.service.ServicioCifrado;
 import apigenerica.service.SqlService;
 import apigenerica.service.ValidadorService;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.Javalin;
-import io.javalin.http.Context;
 import io.javalin.http.ForbiddenResponse;
+import io.javalin.http.UploadedFile;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Punto de entrada de la API genérica del ERP. Inicializa conexiones,
@@ -38,6 +51,12 @@ public class ApiGenerica {
         // ── Inicializar conexión con MySQL ────────────────────────────
         ConexionMysql.inicializar();
 
+        // ── Inicializar conexión con Paradox ──────────────────────────
+        ConexionParadox.inicializar();
+
+        // ── Inicializar motor de logs ─────────────────────────────────
+        LogService.inicializar();
+
         // ── Instanciar servicios (inyección de dependencias manual) ───
         MetaDao metaDao = new MetaDao();
         BaseDao baseDao = new BaseDao();
@@ -46,6 +65,7 @@ public class ApiGenerica {
         FicheroService ficheroService = new FicheroService();
         MetaService metaService = new MetaService(metaDao, validador, sqlService, ficheroService);
         OrderService orderService = new OrderService(metaDao);
+        ServicioCifrado cifrado = new ServicioCifrado();
         JwtService jwtService = new JwtService();
         UsuarioDao authService = new UsuarioDao();
         RolDao rolDao = new RolDao();
@@ -57,6 +77,14 @@ public class ApiGenerica {
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
         MetaController metaCtrl = new MetaController(metaService, validador, orderService, sqlService);
+        RolController rolCtrl = new RolController(new RolDao());
+        LogController logCtrl = new LogController();
+
+        // Variable effectively-final necesaria para usar ficheroService dentro
+        // de lambdas. Java exige que las variables capturadas en lambdas no se reasignen,
+        // y ficheroService puede ser null si db4o falla, por eso se copia aquí.
+        final FicheroService fs = ficheroService;
+        final FicheroController ficheroCtrl = (fs != null) ? new FicheroController(fs) : null;
 
         // ── Crear servidor Javalin ───────────────────────────────────
         Javalin app = Javalin.create(config -> {
@@ -64,29 +92,55 @@ public class ApiGenerica {
             config.enableCorsForAllOrigins();
             // Logging de peticiones
             config.enableDevLogging();
+            // Aumentar el límite de subida a 500 MB para soportar ficheros grandes
+            config.maxRequestSize = 500_000_000L;
         }).start(7000);
 
-        // Verificar Token (excepto login/store)
+        // Verificar Token
         app.before("/api/*", ctx -> {
             String path = ctx.path();
-            if (path.startsWith("/api/auth/login") || path.startsWith("/api/store") || path.startsWith("/api/auth/signup")) {
+            String method = ctx.method();
+
+            // Permitir CORS (OPTIONS) y Rutas Públicas
+            if ("OPTIONS".equalsIgnoreCase(method)) {
                 return;
             }
 
-            // Verificar JWT y setear atributos
-            DecodedJWT jwt = jwtService.verificarToken(getToken(ctx));
-            ctx.attribute("usuarioId", jwt.getClaim("id").asLong());
-            ctx.attribute("rol", jwt.getClaim("rol").asInt());
-        });
+            if (path.equals("/api/auth/login")
+                    || path.equals("/api/auth/signup")
+                    || path.equals("/api/auth/refresh")
+                    || path.startsWith("/api/store")
+                    || path.equals("/api/test")) {
+                return; // Pasan directo
+            }
 
-        // Filtro de datos para tablas dinámicas
-        app.before("/api/data/{tabla}*", ctx -> {
-            Integer rol = ctx.attribute("rol");
-            String tabla = ctx.pathParam("tabla").toLowerCase();
-            String metodo = ctx.method();
+            // 2. Extraer y Validar el Token
+            String authHeader = ctx.header("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                throw new NoAutorizadoException("Token no proporcionado.", null);
+            }
 
-            if (!permisoService.verificar(rol, tabla, metodo)) {
-                throw new ForbiddenResponse("No tienes permiso para " + metodo + " en la tabla " + tabla);
+            String token = authHeader.replace("Bearer ", "");
+            Integer rolId;
+            try {
+                DecodedJWT jwt = jwtService.verificarToken(token);
+                rolId = jwt.getClaim("rol").asInt();
+                ctx.attribute("usuarioId", jwt.getClaim("id").asLong());
+                ctx.attribute("rolId", rolId);
+            } catch (Exception e) {
+                throw new NoAutorizadoException("Token inválido o expirado.", e);
+            }
+
+            // Mapear la URL a tabla
+            String recursoLogico = mapearRutaARecurso(path);
+
+            if (recursoLogico == null) {
+                throw new NoAutorizadoException("Ruta no reconocida en el mapa de permisos.", null);
+            }
+
+            // Comprobar permisos
+            if (!permisoService.verificar(rolId, recursoLogico, method)) {
+                throw new ForbiddenResponse("No tienes permiso para ejecutar la acción '" + method + "' en el recurso '" + recursoLogico + "'.");
             }
         });
 
@@ -112,9 +166,9 @@ public class ApiGenerica {
         app.post("/api/auth/login", ctx -> authCtrl.login(ctx));
         app.post("/api/auth/refresh", ctx -> authCtrl.refresh(ctx));
         app.post("/api/auth/signup", ctx -> authCtrl.registrar(ctx));
-        app.get("/api/auth/usuarios/{id}", ctx -> authCtrl.obtenerUsuario(ctx));
-        app.put("/api/auth/usuarios/{id}", ctx -> authCtrl.modificarUsuario(ctx));
-        app.delete("/api/auth/usuarios/{id}", ctx -> authCtrl.eliminar(ctx));
+        app.get("/api/metadata/usuarios/{id}", ctx -> authCtrl.obtenerUsuario(ctx));
+        app.put("/api/metadata/usuarios/{id}", ctx -> authCtrl.modificarUsuario(ctx));
+        app.delete("/api/metadata/usuarios/{id}", ctx -> authCtrl.eliminar(ctx));
 
         // ── Endpoints de configuración ERP ───────────────────────────
         app.get("/api/metadata/config", ctx -> configCtrl.getConfig(ctx));
@@ -125,6 +179,38 @@ public class ApiGenerica {
         app.post("/api/metadata/modulos", ctx -> moduloCtrl.create(ctx));
         app.delete("/api/metadata/modulos/{id}", ctx -> moduloCtrl.delete(ctx));
 
+        // ── Endpoints de roles ─────────────────────────────────────
+        app.get("/api/metadata/roles", ctx -> moduloCtrl.getAll(ctx));
+        app.post("/api/metadata/modulos", ctx -> moduloCtrl.create(ctx));
+        app.delete("/api/metadata/modulos/{id}", ctx -> moduloCtrl.delete(ctx));
+
+        // Endpoints de ficheros ─────────────────────────────────
+        app.get("/test", ctx -> {
+            java.nio.file.Path ruta = java.nio.file.Paths.get("test.html");
+            if (java.nio.file.Files.exists(ruta)) {
+                ctx.contentType("text/html; charset=UTF-8");
+                ctx.result(new String(java.nio.file.Files.readAllBytes(ruta), java.nio.charset.StandardCharsets.UTF_8));
+            } else {
+                ctx.status(404).result("test.html no encontrado. Colocalo en la raiz del proyecto.");
+            }
+        });
+
+        if (ficheroCtrl != null) {
+            app.post("/api/ficheros/{tabla}", ctx -> ficheroCtrl.subir(ctx));
+            app.get("/api/ficheros", ctx -> ficheroCtrl.listar(ctx));
+            app.get("/api/ficheros/{uuid}/info", ctx -> ficheroCtrl.obtenerInfo(ctx));
+            app.get("/api/ficheros/{uuid}/descargar", ctx -> ficheroCtrl.descargar(ctx));
+            app.delete("/api/ficheros/{uuid}", ctx -> ficheroCtrl.eliminar(ctx));
+        } else {
+            // Si db4o falló al inicio y el servicio es nulo, devolvemos 503 Service Unavailable en todas sus rutas
+            io.javalin.http.Handler fallback = ctx -> ctx.status(503).json(ApiRespuesta.error("Servicio de ficheros no disponible."));
+            app.post("/api/ficheros/{tabla}", fallback);
+            app.get("/api/ficheros", fallback);
+            app.get("/api/ficheros/{uuid}/info", fallback);
+            app.get("/api/ficheros/{uuid}/descargar", fallback);
+            app.delete("/api/ficheros/{uuid}", fallback);
+        }
+        
         // ── Endpoints CRUD transaccionales ─────────────────────────────────────
         app.post("/api/data/batch/insert", ctx -> baseCtrl.insertTransaccional(ctx));
         app.put("/api/data/batch/update", ctx -> baseCtrl.updateTransaccional(ctx));
@@ -170,12 +256,32 @@ public class ApiGenerica {
         System.out.println("  API ERP Genérica arrancada en :7000");
         System.out.println("===========================================");
     }
-    
-    private static String getToken(Context ctx) {
-        String header = ctx.header("Authorization");
-        if (header == null || !header.startsWith("Bearer ")) {
-            throw new io.javalin.http.UnauthorizedResponse("Token no proporcionado o formato inválido");
+
+    private static String mapearRutaARecurso(String path) {
+        // Si es una tabla dinámica
+        if (path.startsWith("/api/data/")) {
+            String[] partes = path.split("/");
+            // Extraer el nombre de la tabla
+            return partes.length >= 4 ? partes[3].toLowerCase() : null;
         }
-        return header.substring(7); // Quitar "Bearer "
+
+        // Si es una tabla del sistema
+        if (path.startsWith("/api/metadata/tablas") || path.contains("/columnas")) {
+            return "erp_meta_tablas";
+        }
+        if (path.startsWith("/api/auth/usuarios")) {
+            return "erp_usuarios";
+        }
+        if (path.startsWith("/api/metadata/config")) {
+            return "erp_config";
+        }
+        if (path.startsWith("/api/metadata/modulos")) {
+            return "erp_modulos";
+        }
+        if (path.contains("/roles")) {
+            return "erp_roles";
+        }
+
+        return null; // Ruta desconocida
     }
 }
