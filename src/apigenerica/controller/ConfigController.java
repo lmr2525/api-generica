@@ -45,17 +45,17 @@ public class ConfigController {
      */
     @SuppressWarnings("unchecked")
     public void updateConfig(Context ctx) {
-        Map<String, String> nuevosValores = ctx.bodyAsClass(Map.class);
+        Map<String, Object> nuevosValores = ctx.bodyAsClass(Map.class);
         String sql = "INSERT INTO `erp_config` (clave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?";
 
         try (Connection conn = ConexionMysql.getConexion("erp_sistema")) {
             conn.setAutoCommit(false);
             
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                for (Map.Entry<String, String> entry : nuevosValores.entrySet()) {
+                for (Map.Entry<String, Object> entry : nuevosValores.entrySet()) {
                     stmt.setString(1, entry.getKey());
-                    stmt.setString(2, entry.getValue());
-                    stmt.setString(3, entry.getValue());
+                    stmt.setObject(2, entry.getValue());
+                    stmt.setObject(3, entry.getValue());
                     stmt.addBatch();
                 }
                 stmt.executeBatch();

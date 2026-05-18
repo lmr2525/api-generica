@@ -11,22 +11,26 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Gestión de roles y permisos
+ *
  * @author Grupo1
  */
 public class PermisoService {
+
     RolDao rolDao = new RolDao();
-    
+
     public PermisoService(RolDao rolDao) {
         this.rolDao = rolDao;
     }
-    
+
     // La clave es "ROL:TABLA"
     // El valor es el objeto con los booleanos de permisos
     private final Map<String, PermisoConfig> cachePermisos = new ConcurrentHashMap<>();
 
     /**
-     * Comprueba si un rol tiene permisos para una tabla
-     * 
+     * Comprueba si un rol tiene permisos para una tabla. El permiso
+     * puede_configurar no se comprueba aquí, ya que no funciona de la misma
+     * manera
+     *
      * @param rol Rol a comprobar
      * @param tabla Tabla sobre la que se desean comprobar los permisos
      * @param metodo Método HTTP correspondiente al permiso
@@ -38,26 +42,49 @@ public class PermisoService {
         // Intentar obtener de la caché. Si no está, buscar en DB y almacenar
         PermisoConfig permisos = cachePermisos.computeIfAbsent(clave, k -> obtenerRolPorTabla(rol, tabla));
 
-        if (permisos == null) return false; // Si no hay permisos configurados, no dar permiso
-
+        if (permisos == null) {
+            return false; // Si no hay permisos configurados, no dar permiso
+        }
         // Mapear método HTTP a permiso
         switch (metodo.toUpperCase()) {
-            case "GET":    return permisos.isPuedeLeer();
-            case "POST":   return permisos.isPuedeEscribir();
-            case "PUT":    
-            case "PATCH":  return permisos.isPuedeEditar();
-            case "DELETE": return permisos.isPuedeBorrar();
-            default:       return false;
+            case "GET":
+                return permisos.isPuedeLeer();
+            case "POST":
+                return permisos.isPuedeEscribir();
+            case "PUT":
+            case "PATCH":
+                return permisos.isPuedeEditar();
+            case "DELETE":
+                return permisos.isPuedeBorrar();
+            default:
+                return false;
         }
     }
 
     /**
-     * Realiza una consulta a la tabla de roles del sistema
-     * para obtener los permisos correspondientes al rol
+     * Comprueba si un usuario tiene permisos de configuración sobre una tabla
      * 
+     * @param rolId ID del rol
+     * @param nombreTabla Nombre de la tabla sobre la que se comprobarán los permisos
+     * @return true si el rol tiene permisos; false, en caso contrario
+     */
+    public boolean puedeConfigurar(int rolId, String nombreTabla) {
+        String clave = rolId + ":" + nombreTabla.toLowerCase();
+        // Intentar obtener de la caché. Si no está, buscar en DB y almacenar
+        PermisoConfig permisos = cachePermisos.computeIfAbsent(clave, k -> obtenerRolPorTabla(rolId, nombreTabla));
+        if (permisos == null) {
+            return false; // Si no hay permisos configurados, no dar permiso
+        }
+        return permisos.isPuedeConfigurar();
+    }
+
+    /**
+     * Realiza una consulta a la tabla de roles del sistema para obtener los
+     * permisos correspondientes al rol
+     *
      * @param rol
      * @param tabla
-     * @return 
+     * @return
      */
     private PermisoConfig obtenerRolPorTabla(int rol, String tabla) {
         return rolDao.getPermisos(rol, tabla);

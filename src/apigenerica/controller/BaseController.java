@@ -121,21 +121,6 @@ public class BaseController {
         }
     }
 
-    private Map<String, List<ColumnaConfig>> obtenerColumnasHijas(List<RelacionConfig> relaciones) {
-        Map<String, List<ColumnaConfig>> colsHijas = new HashMap<>();
-        for (RelacionConfig rel : relaciones) {
-            // Buscar configuración de la tabla destino (hija)
-            TablaConfig configHija = metaService.getConfiguracion(rel.getTablaDestino());
-
-            // Si tiene columnas, se guardan. Si no, guardar una lista vacía
-            List<ColumnaConfig> colHija = configHija.getColumnas() != null
-                    ? configHija.getColumnas() : new ArrayList<>();
-
-            colsHijas.put(rel.getTablaDestino(), colHija);
-        }
-        return colsHijas;
-    }
-
     /**
      * Obtener entidad de un registro de una tabla
      *
@@ -278,17 +263,6 @@ public class BaseController {
         } catch (SQLException e) {
             limpiarFicheros(uuids); // Borrar ficheros guardados
             throw new BaseDatosException("Error de conexión.", e);
-        }
-    }
-
-    /**
-     * Eliminar ficheros a partir de su UUID. Se utiliza si la operación falló
-     *
-     * @param uuids Lista de UUIDs
-     */
-    private void limpiarFicheros(List<String> uuids) {
-        for (String uuid : uuids) {
-            ficheroService.eliminar(uuid);
         }
     }
 
@@ -492,6 +466,28 @@ public class BaseController {
         }
     }
 
+    /**
+     * Recupera los metadatos completos de una tabla hija
+     * 
+     * @param relaciones Lista de relaciones de una tabla, para obtener el nombre de 
+     * las tablas hijas
+     * @return Colección con el nombre de la tabla hija y la lista de metadatos
+     */
+    private Map<String, List<ColumnaConfig>> obtenerColumnasHijas(List<RelacionConfig> relaciones) {
+        Map<String, List<ColumnaConfig>> colsHijas = new HashMap<>();
+        for (RelacionConfig rel : relaciones) {
+            // Buscar configuración de la tabla destino (hija)
+            TablaConfig configHija = metaService.getConfiguracion(rel.getTablaDestino());
+
+            // Si tiene columnas, se guardan. Si no, guardar una lista vacía
+            List<ColumnaConfig> colHija = configHija.getColumnas() != null
+                    ? configHija.getColumnas() : new ArrayList<>();
+
+            colsHijas.put(rel.getTablaDestino(), colHija);
+        }
+        return colsHijas;
+    }
+        
     private EntidadDinamica convertirTipos(EntidadDinamica datos, List<ColumnaConfig> columnas) {
         EntidadDinamica convertidos = new EntidadDinamica();
 
@@ -549,6 +545,26 @@ public class BaseController {
         entidades.forEach(e -> aplicarFiltroPrivacidadEntidad(e, configs));
     }
 
+    /**
+     * Eliminar ficheros a partir de su UUID. Se utiliza si la operación falló
+     *
+     * @param uuids Lista de UUIDs
+     */
+    private void limpiarFicheros(List<String> uuids) {
+        for (String uuid : uuids) {
+            ficheroService.eliminar(uuid);
+        }
+    }
+    
+    /**
+     * Extraer ficheros del Context
+     * 
+     * @param ctx
+     * @param tabla
+     * @param entidad
+     * @param uuidsNuevos
+     * @param columnas 
+     */
     private void procesarFicheros(Context ctx, String tabla, EntidadDinamica entidad, List<String> uuidsNuevos, List<ColumnaConfig> columnas) {
         for (ColumnaConfig col : columnas) {
             // Obtener columnas fichero

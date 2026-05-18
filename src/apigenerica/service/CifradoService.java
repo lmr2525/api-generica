@@ -9,7 +9,7 @@ import java.util.Base64;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
-public class ServicioCifrado {
+public class CifradoService {
     private static final String LLAVE = "12345678901234561234567890123456";
 
     public String encriptar(String dato) throws Exception {

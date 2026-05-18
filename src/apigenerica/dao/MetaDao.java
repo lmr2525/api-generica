@@ -210,6 +210,60 @@ public class MetaDao {
     }
 
     /**
+     * Eliminar una relación
+     *
+     * @param id ID de la relación
+     * @throws SQLException
+     */
+    public void eliminarRelacion(int id) throws SQLException {
+        String sql = "DELETE FROM erp_meta_relaciones WHERE id = ?";
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+        }
+    }
+    
+    /**
+     * Guardar una relación nueva, sin la configuración completa de la tabla
+     * 
+     * @param rel Metadatos/configuración de la relación para insertar
+     * @param tablaOrigenId ID de la tabla de origen para vincular la relación
+     * @throws SQLException 
+     */
+    public void guardarNuevaRelacion(RelacionConfig rel, long tablaOrigenId) throws SQLException {
+        String sql = "INSERT INTO erp_meta_relaciones (nombre, tabla_origen, fk_columna, tabla_destino, cardinalidad) VALUES (?, ?, ?, ?, ?)";
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, rel.getNombreRelacion());
+            stmt.setLong(2, tablaOrigenId);
+            stmt.setString(3, rel.getFkColumna());
+            stmt.setString(4, rel.getTablaDestino());
+            stmt.setString(5, rel.getCardinalidad());
+            stmt.executeUpdate();
+        }
+    }
+
+    /**
+     * Modificar una relación existente
+     * 
+     * @param id ID de la relación
+     * @param rel Metadatos/configuración de la relación actualizada
+     * @throws SQLException 
+     */
+    public void modificarRelacion(int id, RelacionConfig rel) throws SQLException {
+        String sql = "UPDATE erp_meta_relaciones SET nombre = ?, fk_columna = ?, tabla_destino = ?, cardinalidad = ? WHERE id = ?";
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, rel.getNombreRelacion());
+            stmt.setString(2, rel.getFkColumna());
+            stmt.setString(3, rel.getTablaDestino());
+            stmt.setString(4, rel.getCardinalidad());
+            stmt.setInt(5, id);
+            stmt.executeUpdate();
+        }
+    }
+
+    /**
      * Busca qué tablas tienen una relación apuntando hacia la tabla
      * especificada.
      *
@@ -383,15 +437,14 @@ public class MetaDao {
         }
         return uuids;
     }
-    
-    public void guardarNuevaColumna(Long tablaId, ColumnaConfig col) throws SQLException {
-        String sql = "INSERT INTO erp_meta_columnas (tabla_id, nombre, tipo, nullable, " +
-                     "autoincremental, es_visible, es_sensible, es_contrasena, " +
-                     "es_archivo, unico, valor_defecto) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA);
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+    public void guardarNuevaColumna(Long tablaId, ColumnaConfig col) throws SQLException {
+        String sql = "INSERT INTO erp_meta_columnas (tabla_id, nombre, tipo, nullable, "
+                + "autoincremental, es_visible, es_sensible, es_contrasena, "
+                + "es_archivo, unico, valor_defecto) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setLong(1, tablaId);
             stmt.setString(2, col.getNombre());

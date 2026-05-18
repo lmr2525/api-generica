@@ -30,7 +30,7 @@ public class RolDao {
      * @return
      */
     public PermisoConfig getPermisos(int rol, String tabla) {
-        String sql = "SELECT p.puede_leer, p.puede_escribir, p.puede_editar, p.puede_borrar "
+        String sql = "SELECT p.puede_leer, p.puede_escribir, p.puede_editar, p.puede_borrar, p.puede_configurar "
                 + "FROM erp_permisos p "
                 + "JOIN erp_meta_tablas t ON p.tabla_id = t.id "
                 + "WHERE p.rol_id = ? AND t.nombre_logico = ?";
@@ -49,6 +49,7 @@ public class RolDao {
                     p.setPuedeEscribir(rs.getBoolean("puede_escribir"));
                     p.setPuedeEditar(rs.getBoolean("puede_editar"));
                     p.setPuedeBorrar(rs.getBoolean("puede_borrar"));
+                    p.setPuedeConfigurar(rs.getBoolean("puede_configurar"));
                     return p;
                 }
             }
@@ -57,7 +58,7 @@ public class RolDao {
         }
         return null; // Si se encuentra, no hay permiso
     }
-
+    
     /**
      * Devuelve los permisos de un rol sobre todas las tablas/secciones.
      *
@@ -65,14 +66,14 @@ public class RolDao {
      * @return
      */
     public List<PermisoConfig> getTodosPermisos(int rol) {
-        String sql = "SELECT t.nombre_logico, p.puede_leer, p.puede_escribir, p.puede_editar, p.puede_borrar "
+        String sql = "SELECT t.nombre_logico, p.puede_leer, p.puede_escribir, p.puede_editar, p.puede_borrar, p.puede_configurar "
                 + "FROM erp_permisos p "
                 + "JOIN erp_meta_tablas t ON p.tabla_id = t.id "
                 + "WHERE p.rol_id = ?";
         List<PermisoConfig> permisos = new ArrayList<>();
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, rol); // <-- Cambiado a setInt
+            stmt.setInt(1, rol);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -83,6 +84,7 @@ public class RolDao {
                     p.setPuedeEscribir(rs.getBoolean("puede_escribir"));
                     p.setPuedeEditar(rs.getBoolean("puede_editar"));
                     p.setPuedeBorrar(rs.getBoolean("puede_borrar"));
+                    p.setPuedeConfigurar(rs.getBoolean("puede_configurar"));
                     permisos.add(p);
                 }
             }
@@ -172,7 +174,7 @@ public class RolDao {
     }
 
     /**
-     * Guarda o actualiza los permisos de un rol sobre una tabla. Utiliza ON
+     * Crea o actualiza los permisos de un rol sobre una tabla. Utiliza ON
      * DUPLICATE KEY UPDATE para sincronizar los metadatos.
      *
      * @param rolId ID numérico del rol
@@ -180,14 +182,15 @@ public class RolDao {
      * @param permiso Objeto con los booleanos de permisos
      */
     public void guardarPermisos(int rolId, String tabla, PermisoConfig permiso) {
-        // La consulta busca el ID de la tabla internamente para no obligarte a pasarlo por parámetro
-        String sql = "INSERT INTO erp_permisos (rol_id, tabla_id, puede_leer, puede_escribir, puede_editar, puede_borrar) "
-                + "VALUES (?, (SELECT id FROM erp_meta_tablas WHERE nombre_logico = ?), ?, ?, ?, ?) "
+        // La consulta busca el ID de la tabla para no tener que pasarlo por parámetro
+        String sql = "INSERT INTO erp_permisos (rol_id, tabla_id, puede_leer, puede_escribir, puede_editar, puede_borrar, puede_configurar) "
+                + "VALUES (?, (SELECT id FROM erp_meta_tablas WHERE nombre_logico = ?), ?, ?, ?, ?, ?) "
                 + "ON DUPLICATE KEY UPDATE "
                 + "puede_leer = VALUES(puede_leer), "
                 + "puede_escribir = VALUES(puede_escribir), "
                 + "puede_editar = VALUES(puede_editar), "
-                + "puede_borrar = VALUES(puede_borrar)";
+                + "puede_borrar = VALUES(puede_borrar), "
+                + "puede_configurar = VALUES(puede_configurar)";
 
         try (Connection conn = ConexionMysql.getConexion(AppConfig.DB_SISTEMA); PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -197,6 +200,7 @@ public class RolDao {
             stmt.setBoolean(4, permiso.isPuedeEscribir());
             stmt.setBoolean(5, permiso.isPuedeEditar());
             stmt.setBoolean(6, permiso.isPuedeBorrar());
+            stmt.setBoolean(7, permiso.isPuedeConfigurar());
 
             stmt.executeUpdate();
         } catch (SQLException e) {

@@ -88,7 +88,7 @@ public class ConexionMysql {
             // Tabla de configuración global de la empresa
             stmt.executeUpdate(
                     "CREATE TABLE IF NOT EXISTS `erp_config` ("
-                    + "  `id` INT AUTO_INCREMENT PRIMARY KEY,"        
+                    + "  `id` INT AUTO_INCREMENT PRIMARY KEY,"
                     + "  `clave` VARCHAR(100),"
                     + "  `valor` TEXT,"
                     + "  `actualizado` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
@@ -181,6 +181,7 @@ public class ConexionMysql {
                     + "  `puede_escribir` TINYINT(1) NOT NULL DEFAULT 0,"
                     + "  `puede_editar` TINYINT(1) NOT NULL DEFAULT 0,"
                     + "  `puede_borrar` TINYINT(1) NOT NULL DEFAULT 0,"
+                    + "  `puede_configurar` TINYINT(1) NOT NULL DEFAULT 0,"
                     + "  FOREIGN KEY (`tabla_id`) REFERENCES `erp_meta_tablas`(`id`) ON DELETE CASCADE,"
                     + "  FOREIGN KEY (`rol_id`) REFERENCES `erp_roles`(`id`) ON DELETE CASCADE,"
                     + "  UNIQUE KEY `unique_rol_tabla` (`rol_id`, `tabla_id`)"
@@ -200,8 +201,9 @@ public class ConexionMysql {
                     + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
             );
 
+            // Hay que cambiar el nombre y la descripción por una variable para configurar en el instalador
             stmt.executeUpdate("INSERT IGNORE INTO `erp_roles` (id, nombre, descripcion) VALUES (1, 'admin', 'Super Administrador')");
-            
+
             // Asegurar que las tablas de sistema estén en erp_meta_tablas
             String[] tablasSistema = {"erp_meta_tablas", "erp_meta_columnas", "erp_roles", "erp_permisos", "erp_usuarios", "erp_config", "erp_ficheros"};
 
@@ -213,8 +215,8 @@ public class ConexionMysql {
                 );
             }
 
-        // Asignar permisos totales al rol de admin (ID 1)
-        // Usamos un INSERT ... SELECT para obtener los IDs dinámicamente de erp_meta_tablas
+            // Asignar permisos totales al rol de admin (ID 1)
+            // Usamos un INSERT ... SELECT para obtener los IDs dinámicamente de erp_meta_tablas
             stmt.executeUpdate(
                     "INSERT IGNORE INTO `erp_permisos` (rol_id, tabla_id, puede_leer, puede_escribir, puede_editar, puede_borrar) "
                     + "SELECT 1, id, 1, 1, 1, 1 FROM `erp_meta_tablas` "

@@ -1,31 +1,13 @@
 package apigenerica.config;
 
-import apigenerica.controller.AuthController;
-import apigenerica.controller.BaseController;
-import apigenerica.controller.ConfigController;
-import apigenerica.controller.FicheroController;
-import apigenerica.controller.LogController;
-import apigenerica.controller.MetaController;
-import apigenerica.controller.ModuloController;
-import apigenerica.controller.RolController;
-import apigenerica.dao.BaseDao;
-import apigenerica.dao.MetaDao;
-import apigenerica.dao.RolDao;
-import apigenerica.excepciones.BaseDatosException;
-import apigenerica.excepciones.NoAutorizadoException;
-import apigenerica.excepciones.RecursoNoEncontradoException;
-import apigenerica.excepciones.ValidacionException;
+import static apigenerica.config.ApiGenerica.TipoAcceso.CONFIGURAR;
+import static apigenerica.config.ApiGenerica.TipoAcceso.DATO;
+import static apigenerica.config.ApiGenerica.TipoAcceso.SISTEMA;
+import apigenerica.controller.*;
+import apigenerica.dao.*;
+import apigenerica.excepciones.*;
 import apigenerica.model.ApiRespuesta;
-import apigenerica.dao.UsuarioDao;
-import apigenerica.service.FicheroService;
-import apigenerica.service.JwtService;
-import apigenerica.service.LogService;
-import apigenerica.service.MetaService;
-import apigenerica.service.OrderService;
-import apigenerica.service.PermisoService;
-import apigenerica.service.ServicioCifrado;
-import apigenerica.service.SqlService;
-import apigenerica.service.ValidadorService;
+import apigenerica.service.*;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import io.javalin.Javalin;
 import io.javalin.http.ForbiddenResponse;
@@ -56,7 +38,7 @@ public class ApiGenerica {
         FicheroService ficheroService = new FicheroService();
         MetaService metaService = new MetaService(metaDao, validador, sqlService, ficheroService);
         OrderService orderService = new OrderService(metaDao);
-        ServicioCifrado cifrado = new ServicioCifrado();
+        CifradoService cifrado = new CifradoService();
         JwtService jwtService = new JwtService();
         UsuarioDao authService = new UsuarioDao();
         RolDao rolDao = new RolDao();
@@ -67,7 +49,7 @@ public class ApiGenerica {
         AuthController authCtrl = new AuthController(jwtService, authService);
         ConfigController configCtrl = new ConfigController();
         ModuloController moduloCtrl = new ModuloController();
-        MetaController metaCtrl = new MetaController(metaService, validador, orderService, sqlService);
+        MetaController metaCtrl = new MetaController(metaService, validador, metaDao, orderService, sqlService);
         RolController rolCtrl = new RolController(new RolDao());
         LogController logCtrl = new LogController();
 
@@ -87,34 +69,34 @@ public class ApiGenerica {
             config.maxRequestSize = 500_000_000L;
         }).start(7000);
 
-        // Verificar Token
+        // Middleware: interceptar petición antes de ejecutarse
         app.before("/api/*", ctx -> {
             String path = ctx.path();
             String method = ctx.method();
 
-            // Permitir CORS (OPTIONS) y Rutas Públicas
+            // Si el método es OPTIONS, permitir el paso sin realizar comprobaciones
             if ("OPTIONS".equalsIgnoreCase(method)) {
                 return;
             }
 
+            // Rutas públicas
             if (path.equals("/api/auth/login")
                     || path.equals("/api/auth/signup")
                     || path.equals("/api/auth/refresh")
                     || path.startsWith("/api/store")
                     || path.equals("/api/test")) {
-                return; // Pasan directo
+                return; // Permitir paso sin realizar comprobaciones
             }
 
-            // 2. Extraer y Validar el Token
+            // Validar token 
             String authHeader = ctx.header("Authorization");
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 throw new NoAutorizadoException("Token no proporcionado.", null);
             }
 
-            String token = authHeader.replace("Bearer ", "");
-            Integer rolId;
+            int rolId;
             try {
-                DecodedJWT jwt = jwtService.verificarToken(token);
+                DecodedJWT jwt = jwtService.verificarToken(authHeader.replace("Bearer ", ""));
                 rolId = jwt.getClaim("rol").asInt();
                 ctx.attribute("usuarioId", jwt.getClaim("id").asLong());
                 ctx.attribute("rolId", rolId);
@@ -122,16 +104,44 @@ public class ApiGenerica {
                 throw new NoAutorizadoException("Token inválido o expirado.", e);
             }
 
-            // Mapear la URL a tabla
-            String recursoLogico = mapearRutaARecurso(path);
+            // Clasificar la ruta 
+            RecursoAcceso recurso = clasificarRuta(path, method);
 
-            if (recursoLogico == null) {
-                throw new NoAutorizadoException("Ruta no reconocida en el mapa de permisos.", null);
+            if (recurso == null) {
+                throw new NoAutorizadoException("Ruta no reconocida.", null);
             }
 
-            // Comprobar permisos
-            if (!permisoService.verificar(rolId, recursoLogico, method)) {
-                throw new ForbiddenResponse("No tienes permiso para ejecutar la acción '" + method + "' en el recurso '" + recursoLogico + "'.");
+            // Aplicar política según tipo
+            switch (recurso.getTipo()) {
+                case SISTEMA:
+                    // Solo rol 1 (creado en el instalador) puede escribir en recursos de sistema
+                    if (!method.equalsIgnoreCase("GET") && rolId != 1) {
+                        throw new ForbiddenResponse("Solo el administrador puede modificar la configuración del sistema.");
+                    }
+                    break;
+
+                case CONFIGURAR:
+                    if (rolId == 1) {
+                        break; // Si es admin, permitir paso sin comprobar permisos
+                    }
+                    // Para relaciones por ID, el MetaController comprueba internamente
+                    if (recurso.getTabla().equals("__relacion_por_id__")) {
+                        break;
+                    }
+                    // Comprobar permisos para el resto
+                    if (!permisoService.puedeConfigurar(rolId, recurso.getTabla())) {
+                        throw new ForbiddenResponse(
+                                "No tienes permiso para modificar la estructura de '" + recurso.getTabla() + "'.");
+                    }
+                    break;
+
+                case DATO:
+                    // Comprobar permisos sobre una tabla creada dinámicamente
+                    if (!permisoService.verificar(rolId, recurso.getTabla(), method)) {
+                        throw new ForbiddenResponse(
+                                "No tienes permiso para '" + method + "' en '" + recurso.getTabla() + "'.");
+                    }
+                    break;
             }
         });
 
@@ -171,10 +181,20 @@ public class ApiGenerica {
         app.delete("/api/metadata/modulos/{id}", ctx -> moduloCtrl.delete(ctx));
 
         // ── Endpoints de roles ─────────────────────────────────────
-        app.get("/api/metadata/roles", ctx -> moduloCtrl.getAll(ctx));
-        app.post("/api/metadata/roles", ctx -> moduloCtrl.create(ctx));
-        
-        // Endpoints de ficheros ─────────────────────────────────
+        app.get("/api/metadata/roles", ctx -> rolCtrl.listarRoles(ctx));
+        app.post("/api/metadata/roles", ctx -> rolCtrl.crearRol(ctx));
+        app.put("/api/metadata/roles/{rol}", ctx -> rolCtrl.);
+        app.delete("/api/metadata/roles/{rol}", ctx -> rolCtrl.eliminarRol(ctx));
+
+        // ── Endpoints de relaciones ──────────────
+        // Añadir una relación a una tabla existente
+        app.post("/api/metadata/tablas/{tabla}/relaciones", ctx -> metaCtrl.agregarRelacion(ctx));
+        // Eliminar una relación
+        app.delete("/api/metadata/relaciones/{id}", ctx -> metaCtrl.eliminarRelacion(ctx));
+        // Modificar una relación
+        app.put("/api/metadata/relaciones/{id}", ctx -> metaCtrl.modificarRelacion(ctx));
+
+        // ── Endpoints de ficheros ─────────────────────────────────
         app.get("/test", ctx -> {
             java.nio.file.Path ruta = java.nio.file.Paths.get("test.html");
             if (java.nio.file.Files.exists(ruta)) {
@@ -200,7 +220,7 @@ public class ApiGenerica {
             app.get("/api/ficheros/{uuid}/descargar", fallback);
             app.delete("/api/ficheros/{uuid}", fallback);
         }
-        
+
         // ── Endpoints CRUD transaccionales ─────────────────────────────────────
         app.post("/api/data/batch/insert", ctx -> baseCtrl.insertTransaccional(ctx));
         app.put("/api/data/batch/update", ctx -> baseCtrl.updateTransaccional(ctx));
@@ -247,34 +267,93 @@ public class ApiGenerica {
         System.out.println("===========================================");
     }
 
-    private static String mapearRutaARecurso(String path) {
-        // Si es una tabla dinámica
-        if (path.startsWith("/api/data/")) {
-            String[] partes = path.split("/");
-            // Extraer el nombre de la tabla
-            return partes.length >= 4 ? partes[3].toLowerCase() : null;
+    // Tipo de recurso de la base de datos
+    // SISTEMA: Corresponde a una tabla del sistema
+    // CONFIGURAR: Acceso a las tablas erp_meta_, para poder configurar las 
+    // tablas creadas por el usuario
+    // DATO: Corresponde a una tabla dinámica creada por el usuario
+    enum TipoAcceso {
+        SISTEMA, CONFIGURAR, DATO
+    }
+
+    // Clase interna para gestionar el acceso a los recursos
+    static class RecursoAcceso {
+
+        private final TipoAcceso tipo;
+        private final String tabla;
+
+        public RecursoAcceso(TipoAcceso tipo, String tabla) {
+            this.tipo = tipo;
+            this.tabla = tabla;
         }
 
-        // Si es una tabla del sistema
-        if (path.startsWith("/api/metadata/tablas") || path.contains("/columnas")) {
-            return "erp_meta_tablas";
+        public TipoAcceso getTipo() {
+            return tipo;
         }
+
+        public String getTabla() {
+            return tabla;
+        }
+    }
+
+    private static RecursoAcceso clasificarRuta(String path, String method) {
+
+        // Rutas de tablas dinámicas
+        if (path.startsWith("/api/data/")) {
+            // Obtener nombre de la tabla
+            String[] p = path.split("/");
+            String tabla = p.length >= 4 ? p[3].toLowerCase() : null;
+            if (tabla == null) {
+                return null;
+            }
+            return new RecursoAcceso(TipoAcceso.DATO, tabla);
+        }
+
+        // Rutas de metadatos 
+        if (path.startsWith("/api/metadata/tablas/")) {
+            String[] p = path.split("/");
+            // p[0]="" p[1]="api" p[2]="metadata" p[3]="tablas" p[4]="{tabla}" p[5]=segmento
+            if (p.length >= 6) {
+                String tabla = p[4].toLowerCase();
+                String segmento = p[5].toLowerCase();
+                if (segmento.equals("columnas") || segmento.equals("relaciones")) {
+                    // GET de estructura → SISTEMA (solo lectura, rol 1 o con acceso)
+                    // PUT/POST/DELETE sobre columnas o relaciones → CONFIGURAR
+                    if (method.equalsIgnoreCase("GET")) {
+                        return new RecursoAcceso(TipoAcceso.SISTEMA, tabla);
+                    }
+                    return new RecursoAcceso(TipoAcceso.CONFIGURAR, tabla);
+                }
+            }
+            // /api/metadata/tablas (listar) o /api/metadata/tablas/{tabla} (obtener/eliminar tabla entera)
+            return new RecursoAcceso(TipoAcceso.SISTEMA, "erp_meta_tablas");
+        }
+
+        // Relaciones por ID (put/delete /api/metadata/relaciones/{id})
+        // No tenemos el nombre de tabla en el path; el MetaController deberá
+        // validar internamente que el rol tiene puede_configurar sobre ella.
+        // Aquí solo comprobamos que el rol no sea anónimo.
+        if (path.startsWith("/api/metadata/relaciones/")) {
+            return new RecursoAcceso(TipoAcceso.CONFIGURAR, "__relacion_por_id__");
+        }
+
+        // Resto de rutas
         if (path.startsWith("/api/auth/usuarios")) {
-            return "erp_usuarios";
+            return new RecursoAcceso(TipoAcceso.SISTEMA, "erp_usuarios");
         }
         if (path.startsWith("/api/metadata/config")) {
-            return "erp_config";
+            return new RecursoAcceso(TipoAcceso.SISTEMA, "erp_config");
         }
         if (path.startsWith("/api/metadata/modulos")) {
-            return "erp_modulos";
+            return new RecursoAcceso(TipoAcceso.SISTEMA, "erp_modulos");
         }
         if (path.contains("/roles")) {
-            return "erp_roles";
+            return new RecursoAcceso(TipoAcceso.SISTEMA, "erp_roles");
         }
         if (path.startsWith("/api/ficheros")) {
-            return "erp_ficheros";
+            return new RecursoAcceso(TipoAcceso.DATO, "erp_ficheros");
         }
 
-        return null; // Ruta desconocida
+        return null;
     }
 }

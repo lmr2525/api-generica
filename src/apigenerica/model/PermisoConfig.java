@@ -13,23 +13,25 @@ public class PermisoConfig {
 
     private String rol;
     private String tabla;
-    private boolean puedeLeer;
-    private boolean puedeEscribir;
-    private boolean puedeEditar;
-    private boolean puedeBorrar;
+    private boolean puedeLeer; // SELECT
+    private boolean puedeEscribir; // INSERT
+    private boolean puedeEditar; // UPDATE
+    private boolean puedeBorrar; // DELETE
+    private boolean puedeConfigurar; // ALTER
 
     public PermisoConfig() {
     }
 
     public PermisoConfig(String rol, String tabla,
             boolean puedeVer, boolean puedeCrear,
-            boolean puedeEditar, boolean puedeEliminar) {
+            boolean puedeEditar, boolean puedeEliminar, boolean puedeConfigurar) {
         this.rol = rol;
         this.tabla = tabla;
         this.puedeLeer = puedeVer;
         this.puedeEscribir = puedeCrear;
         this.puedeEditar = puedeEditar;
         this.puedeBorrar = puedeEliminar;
+        this.puedeConfigurar = puedeConfigurar;
     }
 
     public String getRol() {
@@ -78,5 +80,13 @@ public class PermisoConfig {
 
     public void setPuedeBorrar(boolean puedeBorrar) {
         this.puedeBorrar = puedeBorrar;
+    }
+
+    public boolean isPuedeConfigurar() {
+        return puedeConfigurar;
+    }
+
+    public void setPuedeConfigurar(boolean puedeConfigurar) {
+        this.puedeConfigurar = puedeConfigurar;
     }
 }

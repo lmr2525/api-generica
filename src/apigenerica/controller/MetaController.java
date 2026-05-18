@@ -5,6 +5,7 @@
 package apigenerica.controller;
 
 import apigenerica.config.AppConfig;
+import apigenerica.dao.MetaDao;
 import apigenerica.excepciones.BaseDatosException;
 import apigenerica.excepciones.RecursoNoEncontradoException;
 import apigenerica.excepciones.ValidacionException;
@@ -35,13 +36,15 @@ public class MetaController {
 
     private final MetaService metaService;
     private final ValidadorService validador;
+    private final MetaDao metaDao;
     private final OrderService orderService;
     private final SqlService sqlService;
 
     public MetaController(MetaService metaService, ValidadorService validador,
-            OrderService orderService, SqlService sqlService) {
+            MetaDao metaDao, OrderService orderService, SqlService sqlService) {
         this.metaService = metaService;
         this.validador = validador;
+        this.metaDao = metaDao;
         this.orderService = orderService;
         this.sqlService = sqlService;
     }
@@ -79,7 +82,7 @@ public class MetaController {
     *
     * @param request Datos de la petición
     * @return Número de tablas creadas
-    */
+     */
     private int procesarFormulario(ApiRequest request) throws SQLException {
         int tablasCreadas = 0;
         for (TablaConfig t : request.getTabla()) {
@@ -108,8 +111,8 @@ public class MetaController {
 
     /**
      * Elimina una tabla de la base de datos del cliente
-     * 
-     * @param ctx Contexto de la petición HTTP 
+     *
+     * @param ctx Contexto de la petición HTTP
      */
     public void eliminarTabla(Context ctx) {
         try {
@@ -120,7 +123,7 @@ public class MetaController {
             ctx.status(HttpCode.INTERNAL_SERVER_ERROR).json(ApiRespuesta.error("Error en la base de datos al eliminar la tabla"));
         }
     }
-    
+
     /**
      * Obtener nombre de todas las tablas de un módulo
      *
@@ -171,7 +174,7 @@ public class MetaController {
             if (metaService.getConfiguracion(nombreTabla) == null) {
                 throw new RecursoNoEncontradoException("La tabla '" + nombreTabla + "' no existe.");
             }
-            
+
             // Convertir JSON a objeto ColumnaConfig
             ColumnaConfig nuevaCol = ctx.bodyAsClass(ColumnaConfig.class);
 
@@ -187,8 +190,8 @@ public class MetaController {
 
     /**
      * Eliminar columna de una tabla
-     * 
-     * @param ctx 
+     *
+     * @param ctx
      */
     public void eliminarColumna(Context ctx) {
         try {
@@ -206,8 +209,8 @@ public class MetaController {
 
     /**
      * Modificar columna de una tabla
-     * 
-     * @param ctx 
+     *
+     * @param ctx
      */
     public void modificarColumna(Context ctx) {
         try {
@@ -253,6 +256,51 @@ public class MetaController {
             ctx.status(400).json(ApiRespuesta.error(e.getMessage()));
         } catch (SQLException | BaseDatosException e) {
             ctx.status(500).json(ApiRespuesta.error("Error en la base de datos al renombrar la columna: " + e.getMessage()));
+        }
+    }
+    
+    public void agregarRelacion(Context ctx) {
+        String nombreTabla = ctx.pathParam("tabla");
+        RelacionConfig nuevaRel = ctx.bodyAsClass(RelacionConfig.class);
+
+        // Obtener el ID de la tabla origen para la FK
+        TablaConfig tabla = metaDao.getConfiguracion(nombreTabla);
+        if (tabla == null) {
+            ctx.status(404).json(ApiRespuesta.error("La tabla '" + nombreTabla + "' no existe."));
+            return;
+        }
+
+        try {
+            metaDao.guardarNuevaRelacion(nuevaRel, tabla.getId());
+            ctx.status(201).json(ApiRespuesta.ok("Relación agregada correctamente a " + nombreTabla));
+        } catch (SQLException e) {
+            ctx.status(500).json(ApiRespuesta.error("Error al guardar la relación: " + e.getMessage()));
+        }
+    }
+    
+    public void eliminarRelacion(Context ctx) {
+        try {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            metaDao.eliminarRelacion(id);
+            ctx.json(ApiRespuesta.ok("Relación eliminada correctamente."));
+        } catch (NumberFormatException e) {
+            ctx.status(400).json(ApiRespuesta.error("El ID de la relación debe ser numérico."));
+        } catch (SQLException e) {
+            ctx.status(500).json(ApiRespuesta.error("Error al eliminar la relación: " + e.getMessage()));
+        }
+    }
+    
+    public void modificarRelacion(Context ctx) {
+        try {
+            int id = Integer.parseInt(ctx.pathParam("id"));
+            RelacionConfig relEditada = ctx.bodyAsClass(RelacionConfig.class);
+
+            metaDao.modificarRelacion(id, relEditada);
+            ctx.json(ApiRespuesta.ok("Relación actualizada correctamente."));
+        } catch (NumberFormatException e) {
+            ctx.status(400).json(ApiRespuesta.error("ID no válido."));
+        } catch (SQLException e) {
+            ctx.status(500).json(ApiRespuesta.error("Error al actualizar la relación: " + e.getMessage()));
         }
     }
 }
